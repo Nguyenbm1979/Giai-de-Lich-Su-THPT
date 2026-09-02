@@ -77,7 +77,9 @@
     <div class="keyrow">
       <input type="password" id="apiKey" placeholder="Dán API key vào đây (bắt đầu bằng AIza…)">
       <button class="btn-sec" id="toggleKey" type="button">Hiện</button>
+      <button class="btn-sec" id="checkKey" type="button">🔑 Kiểm tra key</button>
     </div>
+    <div id="keyStatus" class="hint"></div>
     <p class="hint">Lấy key miễn phí tại
       <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com/apikey</a>.
       Key chỉ lưu trong trình duyệt máy này (localStorage), không gửi đi đâu khác ngoài Google.</p>
@@ -91,7 +93,7 @@
         <button class="btn-sec" id="loadModels" type="button">Tải danh sách</button>
       </div>
     </div>
-    <p class="hint">Nên chọn bản <b>Pro</b> (suy luận mạnh, đọc ảnh/PDF tốt). Nếu chưa tải được, mặc định dùng <code>gemini-2.5-pro</code>.</p>
+    <p class="hint">Nên chọn bản <b>Pro</b> (suy luận mạnh, đọc ảnh/PDF tốt). Bấm <b>Tải danh sách</b> để chọn mô hình mà key của bạn hỗ trợ. Nếu chưa tải, mặc định dùng <code>gemini-3.1-pro-preview</code>.</p>
 
     <details id="sysWrap">
       <summary>⚙️ Prompt hệ thống (đã điền sẵn — chỉ sửa nếu cần)</summary>
@@ -221,7 +223,7 @@ async function init(){
 }
 function saveRefs(){ localStorage.setItem(LS.refs, JSON.stringify(refDocs)); }
 function getKey(){ return $("#apiKey").value.trim(); }
-function getModel(){ return $("#model").value || "gemini-2.5-pro"; }
+function getModel(){ return $("#model").value || "gemini-3.1-pro-preview"; }
 function setStatus(msg, cls=""){ const s=$("#status"); s.className=cls; s.innerHTML=msg; }
 
 // ---------- Persist settings ----------
@@ -231,6 +233,43 @@ $("#toggleKey").addEventListener("click", () => {
   const i=$("#apiKey"); const p=i.type==="password"; i.type=p?"text":"password"; $("#toggleKey").textContent=p?"Ẩn":"Hiện";
 });
 $("#resetSys").addEventListener("click", () => { $("#sysPrompt").value=DEFAULT_SYS; localStorage.setItem(LS.sys,DEFAULT_SYS); });
+
+// ---------- Kiểm tra API key ----------
+$("#checkKey").addEventListener("click", async () => {
+  const key=getKey(); const box=$("#keyStatus");
+  const set=(html,color)=>{ box.innerHTML=html; box.style.color=color; };
+  if(!key){ set("⚠️ Chưa nhập API key.","#c0392b"); return; }
+  set('<span class="spin"></span> Đang kiểm tra key…',"#6b7686");
+  // B1: key có hợp lệ không (liệt kê model)
+  let freeModel="gemini-2.5-flash";
+  try{
+    const r=await fetch(`${API}/models?key=${key}&pageSize=100`);
+    const j=await r.json();
+    if(!r.ok){
+      const m=j.error?.message||"";
+      if(r.status===400||/API key not valid/i.test(m)) return set("❌ Key KHÔNG hợp lệ (sai hoặc đã bị xoá).","#c0392b");
+      if(r.status===403) return set("❌ Key bị từ chối/vô hiệu hoá hoặc chưa bật Generative Language API.","#c0392b");
+      return set("❌ "+m,"#c0392b");
+    }
+    const names=(j.models||[]).map(m=>m.name.replace("models/","")).filter(n=>/gemini/.test(n));
+    const flash=names.find(n=>/2\.5-flash$/.test(n))||names.find(n=>/flash/.test(n));
+    if(flash) freeModel=flash;
+    set(`✅ Key <b>hợp lệ &amp; còn hoạt động</b> — truy cập được ${names.length} mô hình. Đang thử gọi thật (miễn phí) để kiểm tra quota…`,"#1a7f4b");
+  }catch(err){ return set("❌ Lỗi mạng: "+err.message,"#c0392b"); }
+  // B2: thử gọi thật 1 lần cực nhỏ để phát hiện quota/billing
+  try{
+    const r=await fetch(`${API}/models/${freeModel}:generateContent?key=${key}`,{
+      method:"POST", headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({ contents:[{role:"user",parts:[{text:"ping"}]}], generationConfig:{maxOutputTokens:1,temperature:0} })
+    });
+    const j=await r.json();
+    if(r.ok){ set(`✅ Key <b>hoạt động tốt</b>: gọi thử thành công với <code>${freeModel}</code>. Bạn có thể giải đề (nên chọn model này nếu dùng gói miễn phí).`,"#1a7f4b"); return; }
+    const m=j.error?.message||"";
+    if(r.status===429||/quota/i.test(m)) return set(`⚠️ Key hợp lệ nhưng <b>đã hết hạn mức (quota) gói miễn phí</b>. Hãy đợi reset (theo phút/ngày), giảm số sách gửi kèm, hoặc bật thanh toán. Chi tiết: ${m}`,"#b26a00");
+    if(r.status===403) return set(`⚠️ Key hợp lệ nhưng model <code>${freeModel}</code> bị từ chối (có thể cần bật billing). ${m}`,"#b26a00");
+    set("⚠️ "+m,"#b26a00");
+  }catch(err){ set("❌ Lỗi khi gọi thử: "+err.message,"#c0392b"); }
+});
 $("#model").addEventListener("change", e => localStorage.setItem(LS.model, e.target.value));
 
 // ---------- Load models ----------
@@ -419,14 +458,12 @@ async function generate(userText, appendMode){
   try{ await ensureRefsFresh(); }
   catch(err){ setStatus("❌ Nạp lại sách thất bại: "+err.message,"err"); return; }
 
-  const parts=[];
-  refDocs.filter(d=>d.expiry>Date.now()).forEach(d=>parts.push({ file_data:{ mime_type:d.mimeType, file_uri:d.uri } }));
-  examParts.forEach(e=>parts.push(e.part));
-  parts.push({ text:userText });
+  const bookParts = refDocs.filter(refFresh).map(d=>({ file_data:{ mime_type:d.mimeType, file_uri:d.uri } }));
+  const parts=[...bookParts, ...examParts.map(e=>e.part), { text:userText }];
 
   const contents=[];
   if(appendMode && fullMarkdown){
-    contents.push({ role:"user", parts:[...refDocs.filter(d=>d.expiry>Date.now()).map(d=>({file_data:{mime_type:d.mimeType,file_uri:d.uri}})), ...examParts.map(e=>e.part), {text:"Hãy giải chi tiết đề thi này."}] });
+    contents.push({ role:"user", parts:[...bookParts, ...examParts.map(e=>e.part), {text:"Hãy giải chi tiết đề thi này."}] });
     contents.push({ role:"model", parts:[{text:fullMarkdown}] });
     contents.push({ role:"user", parts:[{text:"Tiếp tục giải các câu còn lại, không lặp lại các câu đã giải."}] });
   }else{
@@ -436,7 +473,7 @@ async function generate(userText, appendMode){
   const body={
     systemInstruction:{ parts:[{ text:$("#sysPrompt").value }] },
     contents,
-    generationConfig:{ temperature:0, topP:0.95, maxOutputTokens:65536 }
+    generationConfig:{ temperature:0, maxOutputTokens:8192 }
   };
 
   $("#run").disabled=true; $("#continue").disabled=true;
@@ -472,7 +509,15 @@ async function generate(userText, appendMode){
     $("#run").disabled=false; $("#continue").disabled=false;
   }
 }
-function safeErr(t){ try{ return JSON.parse(t).error?.message || t; }catch(_){ return t; } }
+function safeErr(t){
+  try{
+    const e=JSON.parse(t).error||{};
+    let msg=e.message||t;
+    const d=(e.details||[]).map(x=>x.fieldViolations?.map(v=>`${v.field}: ${v.description}`).join("; ")||x.reason||"").filter(Boolean).join(" | ");
+    if(d) msg+=` — (${d})`;
+    return msg;
+  }catch(_){ return t; }
+}
 function renderOutput(){ $("#output").innerHTML=marked.parse(fullMarkdown); }
 
 $("#run").addEventListener("click",()=>generate($("#userMsg").value.trim()||"Hãy giải chi tiết đề thi này.",false));
