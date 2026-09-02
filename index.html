@@ -510,11 +510,14 @@ async function generate(userText, appendMode){
   }
 }
 function safeErr(t){
+  console.error("Gemini error response:", t);   // xem toàn bộ lỗi trong Console (F12)
   try{
     const e=JSON.parse(t).error||{};
     let msg=e.message||t;
-    const d=(e.details||[]).map(x=>x.fieldViolations?.map(v=>`${v.field}: ${v.description}`).join("; ")||x.reason||"").filter(Boolean).join(" | ");
+    if(e.status) msg=`[${e.status}] ${msg}`;
+    const d=(e.details||[]).map(x=>x.fieldViolations?.map(v=>`${v.field}: ${v.description}`).join("; ")||x.reason||x["@type"]||"").filter(Boolean).join(" | ");
     if(d) msg+=` — (${d})`;
+    else if(e.message && /invalid argument/i.test(e.message)) msg+=" — (Mở F12 → Console để xem chi tiết. Thường do sách/đề tải chưa xong hoặc URI hết hạn — thử bấm 🔄 Nạp lại sách rồi Giải đề lại.)";
     return msg;
   }catch(_){ return t; }
 }
