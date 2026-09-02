@@ -1,0 +1,545 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Trợ lý giải đề Lịch sử THPT</title>
+<style>
+  :root{
+    --bg:#f4f6fb; --card:#ffffff; --ink:#1f2733; --muted:#6b7686;
+    --line:#e3e8f0; --brand:#8a1c1c; --brand2:#b8342f; --accent:#0b6b5f;
+    --ok:#1a7f4b; --warn:#b26a00; --err:#c0392b; --shadow:0 2px 10px rgba(20,30,50,.06);
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:"Segoe UI",Roboto,Arial,sans-serif;background:var(--bg);color:var(--ink);line-height:1.55}
+  header{background:linear-gradient(100deg,var(--brand),var(--brand2));color:#fff;padding:18px 20px}
+  header h1{margin:0;font-size:20px}
+  header p{margin:4px 0 0;font-size:13px;opacity:.9}
+  .wrap{max-width:960px;margin:0 auto;padding:18px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px;margin-bottom:16px;box-shadow:var(--shadow)}
+  .card h2{margin:0 0 10px;font-size:15px;display:flex;align-items:center;gap:8px}
+  .card h2 .num{background:var(--brand);color:#fff;width:22px;height:22px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:12px;flex:none}
+  label{font-size:13px;font-weight:600;display:block;margin:8px 0 4px}
+  input[type=text],input[type=password],textarea,select{width:100%;padding:9px 10px;border:1px solid var(--line);border-radius:8px;font-size:13px;font-family:inherit;background:#fff;color:var(--ink)}
+  textarea{resize:vertical;min-height:90px}
+  .hint{font-size:12px;color:var(--muted);margin:4px 0 0}
+  .row{display:flex;gap:10px;flex-wrap:wrap}
+  .row>*{flex:1;min-width:180px}
+  button{cursor:pointer;border:none;border-radius:8px;padding:9px 14px;font-size:13px;font-weight:600;font-family:inherit}
+  .btn-primary{background:var(--brand);color:#fff}
+  .btn-primary:hover{background:var(--brand2)}
+  .btn-primary:disabled{background:#c9a2a2;cursor:not-allowed}
+  .btn-sec{background:#eef1f6;color:var(--ink);border:1px solid var(--line)}
+  .btn-sec:hover{background:#e4e9f1}
+  .btn-accent{background:var(--accent);color:#fff}
+  .btn-accent:hover{filter:brightness(1.08)}
+  .drop{border:2px dashed #cfd6e2;border-radius:10px;padding:18px;text-align:center;color:var(--muted);font-size:13px;background:#fbfcfe;cursor:pointer;transition:.15s}
+  .drop:hover,.drop.over{border-color:var(--brand2);background:#fff7f6;color:var(--ink)}
+  .files{list-style:none;padding:0;margin:10px 0 0}
+  .files li{display:flex;align-items:center;gap:8px;padding:7px 10px;border:1px solid var(--line);border-radius:8px;margin-bottom:6px;font-size:12.5px;background:#fafbfd}
+  .files li .name{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .files li .st{font-size:11px;padding:2px 7px;border-radius:20px;white-space:nowrap}
+  .st.ok{background:#e6f5ec;color:var(--ok)} .st.proc{background:#fff3e0;color:var(--warn)} .st.err{background:#fdecea;color:var(--err)}
+  .files li .x{background:none;padding:2px 6px;color:var(--muted);font-weight:700}
+  .files li .x:hover{color:var(--err)}
+  details{border:1px solid var(--line);border-radius:10px;padding:0 12px;margin-top:8px;background:#fbfcfe}
+  details summary{cursor:pointer;padding:10px 0;font-weight:600;font-size:13px}
+  .toolbar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+  #status{font-size:12.5px;color:var(--muted);min-height:18px;margin-top:8px}
+  #status.err{color:var(--err)} #status.ok{color:var(--ok)}
+  #output{border:1px solid var(--line);border-radius:10px;padding:16px 18px;background:#fff;min-height:60px;font-size:14px}
+  #output:empty::before{content:"Kết quả lời giải sẽ hiển thị ở đây…";color:var(--muted)}
+  #output h1,#output h2,#output h3{color:var(--brand);border-bottom:1px solid var(--line);padding-bottom:4px}
+  #output h2{font-size:16px;margin-top:18px}
+  #output ul{margin:6px 0}
+  #output hr{border:none;border-top:1px solid var(--line);margin:14px 0}
+  #output p{margin:6px 0}
+  .badge{font-size:11px;background:#eef1f6;border:1px solid var(--line);border-radius:20px;padding:2px 9px;color:var(--muted)}
+  .spin{display:inline-block;width:13px;height:13px;border:2px solid #ccc;border-top-color:var(--brand);border-radius:50%;animation:sp .7s linear infinite;vertical-align:-2px}
+  @keyframes sp{to{transform:rotate(360deg)}}
+  .keyrow{display:flex;gap:8px}.keyrow input{flex:1}
+  footer{text-align:center;font-size:12px;color:var(--muted);padding:10px 0 30px}
+  a{color:var(--brand2)}
+</style>
+</head>
+<body>
+<header>
+  <h1>📜 Trợ lý giải đề Lịch sử THPT</h1>
+  <p>Tải ảnh/PDF đề thi → AI giải chi tiết theo SGK Kết nối tri thức & GDPT 2018 → xuất file Word (.docx)</p>
+</header>
+
+<div class="wrap">
+
+  <!-- 1. Cài đặt -->
+  <div class="card">
+    <h2><span class="num">1</span> Cài đặt (chỉ làm 1 lần)</h2>
+    <label>Google AI Studio API Key</label>
+    <div class="keyrow">
+      <input type="password" id="apiKey" placeholder="Dán API key vào đây (bắt đầu bằng AIza…)">
+      <button class="btn-sec" id="toggleKey" type="button">Hiện</button>
+    </div>
+    <p class="hint">Lấy key miễn phí tại
+      <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com/apikey</a>.
+      Key chỉ lưu trong trình duyệt máy này (localStorage), không gửi đi đâu khác ngoài Google.</p>
+
+    <div class="row" style="margin-top:6px">
+      <div>
+        <label>Mô hình (Model)</label>
+        <select id="model"><option value="">— Bấm "Tải danh sách" —</option></select>
+      </div>
+      <div style="flex:0 0 auto;min-width:0;display:flex;align-items:flex-end">
+        <button class="btn-sec" id="loadModels" type="button">Tải danh sách</button>
+      </div>
+    </div>
+    <p class="hint">Nên chọn bản <b>Pro</b> (suy luận mạnh, đọc ảnh/PDF tốt). Nếu chưa tải được, mặc định dùng <code>gemini-2.5-pro</code>.</p>
+
+    <details id="sysWrap">
+      <summary>⚙️ Prompt hệ thống (đã điền sẵn — chỉ sửa nếu cần)</summary>
+      <textarea id="sysPrompt" style="min-height:220px;margin:6px 0 12px"></textarea>
+      <button class="btn-sec" id="resetSys" type="button">Khôi phục prompt gốc</button>
+    </details>
+  </div>
+
+  <!-- 2. Tài liệu tham chiếu -->
+  <div class="card">
+    <h2><span class="num">2</span> Tài liệu tham chiếu — SGK (tùy chọn, nên có)</h2>
+    <p class="hint" style="margin-top:0">Tải PDF <b>SGK Lịch sử 10, 11, 12 (Kết nối tri thức)</b> và <b>Chương trình GDPT 2018</b> để AI bám sát sách, không lấy nguồn ngoài. Tải 1 lần, dùng lại trong 48 giờ.</p>
+    <div class="drop" id="refDrop">📚 Bấm hoặc kéo–thả file PDF sách giáo khoa vào đây</div>
+    <input type="file" id="refInput" accept="application/pdf" multiple hidden>
+    <ul class="files" id="refList"></ul>
+    <p class="hint">💡 Sách được <b>ghi nhớ ngay trong trình duyệt máy này</b>: chọn 1 lần, các lần sau tự nạp lại — không cần chọn lại 9 file. Mẹo: chỉ nạp sách lớp liên quan đề để chạy nhanh hơn.</p>
+    <button class="btn-sec" id="reloadRefs" type="button">🔄 Nạp lại sách lên AI</button>
+  </div>
+
+  <!-- 3. Đề thi -->
+  <div class="card">
+    <h2><span class="num">3</span> Đề thi cần giải</h2>
+    <div class="drop" id="examDrop">🖼️ Bấm hoặc kéo–thả <b>ảnh</b> hoặc <b>PDF đề thi</b> vào đây</div>
+    <input type="file" id="examInput" accept="image/*,application/pdf" multiple hidden>
+    <ul class="files" id="examList"></ul>
+    <label style="margin-top:12px">Yêu cầu gửi kèm</label>
+    <input type="text" id="userMsg" value="Hãy giải chi tiết tất cả câu hỏi trong đề thi này theo đúng quy tắc trích dẫn nguồn SGK và định dạng đầu ra đã thiết lập.">
+  </div>
+
+  <!-- 4. Chạy -->
+  <div class="card">
+    <h2><span class="num">4</span> Giải đề & Xuất file</h2>
+    <div class="toolbar">
+      <button class="btn-primary" id="run">▶ Giải đề</button>
+      <button class="btn-sec" id="continue" title="Nếu AI bị ngắt giữa chừng">↻ Giải tiếp</button>
+      <span style="flex:1"></span>
+      <button class="btn-accent" id="exportDocx" disabled>⬇ Tải Word (.docx)</button>
+      <button class="btn-sec" id="copyBtn" disabled>📋 Copy</button>
+    </div>
+    <div id="status"></div>
+    <div id="output"></div>
+  </div>
+
+  <footer>Chạy hoàn toàn trong trình duyệt • Không cần cài đặt • Dùng được trên Windows, macOS, điện thoại</footer>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/docx@8.5.0/build/index.umd.js"></script>
+<script>
+"use strict";
+const API = "https://generativelanguage.googleapis.com/v1beta";
+const $ = s => document.querySelector(s);
+const LS = {
+  key:"hs_apikey", model:"hs_model", sys:"hs_sysprompt", refs:"hs_refdocs"
+};
+
+// ---------- Prompt gốc (bản cuối của thầy) ----------
+const DEFAULT_SYS = `Bạn là một chuyên gia giáo dục và giáo viên chấm thi môn Lịch sử cấp THPT, nắm vững Chương trình GDPT 2018.
+Bạn đã được cung cấp các tài liệu đính kèm làm bộ nhớ cốt lõi bao gồm: SGK Lịch sử 10, 11, 12 (bộ Kết nối tri thức) và Chương trình GDPT 2018.
+
+NHIỆM VỤ:
+Đọc file ảnh/PDF chứa câu hỏi đề thi môn Lịch sử do tôi tải lên ở phần chat. Nhận diện chính xác dạng câu hỏi và cung cấp lời giải chi tiết theo đúng định dạng quy định.
+
+QUY TẮC BẮT BUỘC (TUYỆT ĐỐI TUÂN THỦ):
+1. GIỚI HẠN NGUỒN CHUẨN XÁC: Mọi câu trả lời, giải thích, lập luận và phân tích CHỈ ĐƯỢC PHÉP rút ra từ các file tài liệu đã tải lên. Tuyệt đối KHÔNG sử dụng kiến thức bên ngoài, KHÔNG tìm kiếm trên web, và KHÔNG dùng dữ liệu huấn luyện mặc định. Môn Sử phải chính xác tuyệt đối theo quan điểm của Nhà nước và Bộ GD&ĐT ghi trong sách.
+2. GHI ĐẦY ĐỦ ĐỀ BÀI: Trước mỗi lời giải, BẮT BUỘC chép lại NGUYÊN VĂN, ĐẦY ĐỦ nội dung câu hỏi từ đề thi: chép đủ cả 4 phương án A, B, C, D (dạng 1); chép đủ đoạn tư liệu và cả 4 ý a, b, c, d (dạng 2); chép đủ nội dung câu hỏi tự luận (dạng 3). Không được rút gọn, tóm tắt hay bỏ sót phương án nào. Sau khi chép xong đề bài mới trình bày phần lời giải.
+3. GIẢI ĐỦ MỌI CÂU: Phải giải HẾT tất cả các câu có trong đề, theo đúng thứ tự, không bỏ sót câu nào.
+4. TRÍCH DẪN NGUỒN: Cuối mỗi câu trả lời hoặc mỗi ý giải thích, BẮT BUỘC ghi rõ nguồn tham chiếu (Ví dụ: SGK Lịch sử 12, Bài 1...). Nếu nội dung KHÔNG CÓ trong tài liệu, phải trả lời: "Nội dung này không nằm trong phạm vi 3 bộ SGK KNTT".
+
+ĐỊNH DẠNG ĐẦU RA BẮT BUỘC CHO 3 DẠNG CÂU HỎI:
+
+► NẾU LÀ DẠNG 1 – CÂU HỎI TRẮC NGHIỆM NHIỀU LỰA CHỌN (Chọn 1 đáp án đúng):
+## Câu [Số]: [Chép nguyên văn đầy đủ nội dung câu hỏi]
+[Chép đầy đủ 4 phương án, mỗi phương án một dòng]
+A. …
+B. …
+C. …
+D. …
+* **Đáp án chọn:** [A, B, C hoặc D]
+* **Lời giải chi tiết:** [Phân tích rõ vì sao đáp án này đúng và vì sao các đáp án kia sai dựa trên nội dung SGK]
+* **Nguồn tham chiếu:** [Tên sách, Bài số, Mục nào]
+
+► NẾU LÀ DẠNG 2 – CÂU HỎI TRẮC NGHIỆM ĐÚNG SAI (Gồm 4 ý a, b, c, d):
+## Câu [Số]: [Chép nguyên văn đầy đủ đoạn tư liệu (nếu có) và đầy đủ nội dung 4 ý a, b, c, d của câu hỏi]
+* **Ý a)** [ĐÚNG hoặc SAI]
+  * **Lý giải:** [Giải thích chi tiết tại sao đúng hoặc tại sao sai dựa vào SGK]
+  * **Nguồn tham chiếu:** [Tên sách, Bài số...]
+* **Ý b)** [ĐÚNG hoặc SAI]
+  * **Lý giải:** [Giải thích chi tiết]
+  * **Nguồn tham chiếu:** [Tên sách, Bài số...]
+* **Ý c)** [ĐÚNG hoặc SAI]
+  * **Lý giải:** [Giải thích chi tiết]
+  * **Nguồn tham chiếu:** [Tên sách, Bài số...]
+* **Ý d)** [ĐÚNG hoặc SAI]
+  * **Lý giải:** [Giải thích chi tiết]
+  * **Nguồn tham chiếu:** [Tên sách, Bài số...]
+
+► NẾU LÀ DẠNG 3 – CÂU HỎI TỰ LUẬN:
+## Câu [Số]: [Nội dung câu hỏi tự luận]
+**Gợi ý đáp án:**
+* **[Ý chính thứ 1]:**
+  * [Diễn giải chi tiết các gạch đầu dòng dựa theo nội dung SGK]
+* **[Ý chính thứ 2]:**
+  * [Diễn giải chi tiết...]
+* **Nguồn tham chiếu:** [Tên sách, Bài số...]
+---`;
+
+// ---------- State ----------
+let refDocs = [];   // {name,uri,mimeType,expiry,state}
+let examParts = []; // {name, part:{inline_data|file_data}, mimeType}
+let fullMarkdown = "";
+
+// ---------- Init ----------
+async function init(){
+  $("#apiKey").value = localStorage.getItem(LS.key) || "";
+  $("#sysPrompt").value = localStorage.getItem(LS.sys) || DEFAULT_SYS;
+  refDocs = JSON.parse(localStorage.getItem(LS.refs) || "[]");
+  try{
+    const stored = await idbAll();
+    for(const rec of stored){ if(!refDocs.find(d=>d.id===rec.id)) refDocs.push({ id:rec.id, name:rec.name, uri:null, mimeType:"application/pdf", expiry:0 }); }
+  }catch(_){}
+  refDocs.forEach(d=>{ if(!(d.expiry>Date.now())) d.uri=null; d.busy=false; });
+  saveRefs();
+  renderRefs();
+  const savedModel = localStorage.getItem(LS.model);
+  if(savedModel){ const o=document.createElement("option"); o.value=savedModel; o.textContent=savedModel; o.selected=true; $("#model").appendChild(o); }
+}
+function saveRefs(){ localStorage.setItem(LS.refs, JSON.stringify(refDocs)); }
+function getKey(){ return $("#apiKey").value.trim(); }
+function getModel(){ return $("#model").value || "gemini-2.5-pro"; }
+function setStatus(msg, cls=""){ const s=$("#status"); s.className=cls; s.innerHTML=msg; }
+
+// ---------- Persist settings ----------
+$("#apiKey").addEventListener("change", e => localStorage.setItem(LS.key, e.target.value.trim()));
+$("#sysPrompt").addEventListener("change", e => localStorage.setItem(LS.sys, e.target.value));
+$("#toggleKey").addEventListener("click", () => {
+  const i=$("#apiKey"); const p=i.type==="password"; i.type=p?"text":"password"; $("#toggleKey").textContent=p?"Ẩn":"Hiện";
+});
+$("#resetSys").addEventListener("click", () => { $("#sysPrompt").value=DEFAULT_SYS; localStorage.setItem(LS.sys,DEFAULT_SYS); });
+$("#model").addEventListener("change", e => localStorage.setItem(LS.model, e.target.value));
+
+// ---------- Load models ----------
+$("#loadModels").addEventListener("click", async () => {
+  const key=getKey(); if(!key){ setStatus("⚠️ Chưa nhập API key.","err"); return; }
+  setStatus('<span class="spin"></span> Đang tải danh sách mô hình…');
+  try{
+    const r = await fetch(`${API}/models?key=${key}&pageSize=100`);
+    const j = await r.json();
+    if(!r.ok) throw new Error(j.error?.message || "Lỗi tải model");
+    const models = (j.models||[])
+      .filter(m => (m.supportedGenerationMethods||[]).includes("generateContent"))
+      .map(m => m.name.replace("models/",""))
+      .filter(n => /gemini/.test(n));
+    const sel=$("#model"); sel.innerHTML="";
+    const prefer = models.filter(n=>/pro/.test(n)).concat(models.filter(n=>!/pro/.test(n)));
+    prefer.forEach(n=>{ const o=document.createElement("option"); o.value=n; o.textContent=n; sel.appendChild(o); });
+    const saved=localStorage.getItem(LS.model);
+    if(saved && prefer.includes(saved)) sel.value=saved;
+    else { const p=prefer.find(n=>/pro/.test(n)); if(p) sel.value=p; }
+    localStorage.setItem(LS.model, sel.value);
+    setStatus(`✅ Đã tải ${prefer.length} mô hình. Đang chọn: <b>${sel.value}</b>`,"ok");
+  }catch(err){ setStatus("❌ "+err.message,"err"); }
+});
+
+// ---------- File helpers ----------
+function fileToBase64(file){
+  return new Promise((res,rej)=>{ const fr=new FileReader(); fr.onload=()=>res(fr.result.split(",")[1]); fr.onerror=rej; fr.readAsDataURL(file); });
+}
+// Upload lớn qua File API (resumable) -> trả về {uri,mimeType,name,state}
+async function uploadFileAPI(file, onProgress){
+  const key=getKey();
+  const startRes = await fetch(`${API.replace('/v1beta','')}/upload/v1beta/files?key=${key}`,{
+    method:"POST",
+    headers:{ "X-Goog-Upload-Protocol":"resumable","X-Goog-Upload-Command":"start",
+      "X-Goog-Upload-Header-Content-Length":file.size,"X-Goog-Upload-Header-Content-Type":file.type,
+      "Content-Type":"application/json" },
+    body: JSON.stringify({ file:{ display_name:file.name } })
+  });
+  const uploadUrl = startRes.headers.get("X-Goog-Upload-URL");
+  if(!uploadUrl) throw new Error("Không khởi tạo được upload (kiểm tra API key).");
+  const upRes = await fetch(uploadUrl,{
+    method:"POST",
+    headers:{ "X-Goog-Upload-Command":"upload, finalize","X-Goog-Upload-Offset":"0" },
+    body:file
+  });
+  const j = await upRes.json();
+  if(!upRes.ok) throw new Error(j.error?.message || "Upload thất bại");
+  let f = j.file;
+  // Poll đến khi ACTIVE
+  while(f.state === "PROCESSING"){
+    onProgress && onProgress();
+    await new Promise(r=>setTimeout(r,2000));
+    const pr = await fetch(`${API}/${f.name}?key=${key}`);
+    f = await pr.json();
+  }
+  if(f.state !== "ACTIVE") throw new Error("File xử lý lỗi: "+(f.error?.message||f.state));
+  return { uri:f.uri, mimeType:f.mimeType||file.type, name:f.name };
+}
+
+// ---------- IndexedDB: ghi nhớ PDF sách ngay trong trình duyệt ----------
+function openIDB(){
+  return new Promise((res,rej)=>{
+    const r=indexedDB.open("hsBooks",1);
+    r.onupgradeneeded=e=>{ if(!e.target.result.objectStoreNames.contains("pdfs")) e.target.result.createObjectStore("pdfs",{keyPath:"id"}); };
+    r.onsuccess=e=>res(e.target.result); r.onerror=()=>rej(r.error);
+  });
+}
+async function idbPut(id,name,blob){ const db=await openIDB(); return new Promise((res,rej)=>{const tx=db.transaction("pdfs","readwrite");tx.objectStore("pdfs").put({id,name,blob});tx.oncomplete=()=>res();tx.onerror=()=>rej(tx.error);}); }
+async function idbGet(id){ const db=await openIDB(); return new Promise((res,rej)=>{const tx=db.transaction("pdfs","readonly");const rq=tx.objectStore("pdfs").get(id);rq.onsuccess=()=>res(rq.result);rq.onerror=()=>rej(rq.error);}); }
+async function idbDel(id){ const db=await openIDB(); return new Promise((res,rej)=>{const tx=db.transaction("pdfs","readwrite");tx.objectStore("pdfs").delete(id);tx.oncomplete=()=>res();tx.onerror=()=>rej(tx.error);}); }
+async function idbAll(){ const db=await openIDB(); return new Promise((res,rej)=>{const tx=db.transaction("pdfs","readonly");const rq=tx.objectStore("pdfs").getAll();rq.onsuccess=()=>res(rq.result||[]);rq.onerror=()=>rej(rq.error);}); }
+const bookId = f => `${f.name}__${f.size}`;
+
+// Nạp 1 blob PDF lên Gemini File API (dùng lại cho upload mới & tự nạp lại)
+async function uploadRefBlob(blob, name){
+  const fakeFile = new File([blob], name, { type:"application/pdf" });
+  return uploadFileAPI(fakeFile);
+}
+
+// ---------- Tài liệu tham chiếu ----------
+function refFresh(d){ return d.uri && d.expiry > Date.now(); }
+function renderRefs(){
+  const ul=$("#refList"); ul.innerHTML="";
+  refDocs.forEach((d,i)=>{
+    const li=document.createElement("li");
+    let st;
+    if(d.busy) st=`<span class="st proc"><span class="spin"></span> đang nạp…</span>`;
+    else if(refFresh(d)) st=`<span class="st ok">sẵn sàng · còn ~${Math.max(0,Math.round((d.expiry-Date.now())/3600000))}h</span>`;
+    else st=`<span class="st proc">đã lưu trong máy · sẽ tự nạp lại</span>`;
+    li.innerHTML=`<span class="name">📄 ${d.name}</span>${st}<button class="x" title="Xóa khỏi máy">✕</button>`;
+    li.querySelector(".x").onclick=async()=>{ if(d.id) await idbDel(d.id); refDocs.splice(i,1); saveRefs(); renderRefs(); };
+    ul.appendChild(li);
+  });
+}
+function bindDrop(dropEl, inputEl, handler){
+  dropEl.addEventListener("click",()=>inputEl.click());
+  inputEl.addEventListener("change",()=>{ handler([...inputEl.files]); inputEl.value=""; });
+  ["dragover","dragenter"].forEach(ev=>dropEl.addEventListener(ev,e=>{e.preventDefault();dropEl.classList.add("over");}));
+  ["dragleave","drop"].forEach(ev=>dropEl.addEventListener(ev,e=>{e.preventDefault();dropEl.classList.remove("over");}));
+  dropEl.addEventListener("drop",e=>handler([...e.dataTransfer.files]));
+}
+// Khi có sách trong máy nhưng chưa nạp/hết hạn → tự nạp lại lên Gemini
+async function ensureRefsFresh(){
+  const stale = refDocs.filter(d=>!refFresh(d));
+  if(stale.length===0) return;
+  setStatus(`<span class="spin"></span> Đang tự nạp lại ${stale.length} cuốn sách lên AI…`);
+  for(const d of stale){
+    try{
+      const rec = d.id ? await idbGet(d.id) : null;
+      if(!rec){ throw new Error(`Không tìm thấy bản lưu của "${d.name}", hãy tải lại thủ công.`); }
+      d.busy=true; renderRefs();
+      const up = await uploadRefBlob(rec.blob, d.name);
+      d.uri=up.uri; d.mimeType=up.mimeType; d.expiry=Date.now()+47*3600000; d.busy=false;
+      saveRefs(); renderRefs();
+    }catch(err){ d.busy=false; renderRefs(); throw err; }
+  }
+}
+bindDrop($("#refDrop"),$("#refInput"), async files=>{
+  const key=getKey(); if(!key){ setStatus("⚠️ Nhập API key trước khi tải SGK.","err"); return; }
+  for(const file of files){
+    if(file.type!=="application/pdf"){ setStatus("⚠️ Tài liệu tham chiếu chỉ nhận PDF.","err"); continue; }
+    const id=bookId(file);
+    let d=refDocs.find(x=>x.id===id);
+    if(!d){ d={ id, name:file.name, uri:null, mimeType:"application/pdf", expiry:0, busy:true }; refDocs.push(d); }
+    else { d.busy=true; }
+    renderRefs();
+    try{
+      await idbPut(id, file.name, file);           // nhớ file trong máy (vĩnh viễn tới khi xóa)
+      const up=await uploadFileAPI(file);            // nạp lên Gemini
+      d.uri=up.uri; d.mimeType=up.mimeType; d.expiry=Date.now()+47*3600000; d.busy=false;
+      saveRefs(); renderRefs();
+      setStatus(`✅ Đã nhớ & nạp "${file.name}". Lần sau không cần chọn lại.`,"ok");
+    }catch(err){
+      d.busy=false; renderRefs();
+      setStatus("❌ "+err.message,"err");
+    }
+  }
+});
+$("#reloadRefs").addEventListener("click", async()=>{
+  const key=getKey(); if(!key){ setStatus("⚠️ Nhập API key trước.","err"); return; }
+  try{ await ensureRefsFresh(); setStatus("✅ Sách đã sẵn sàng trên AI.","ok"); }
+  catch(err){ setStatus("❌ "+err.message,"err"); }
+});
+
+// ---------- Đề thi ----------
+function renderExam(){
+  const ul=$("#examList"); ul.innerHTML="";
+  examParts.forEach((e,i)=>{
+    const li=document.createElement("li");
+    li.innerHTML=`<span class="name">${e.mimeType.startsWith("image")?"🖼️":"📄"} ${e.name}</span>
+      <span class="st ok">sẵn sàng</span><button class="x">✕</button>`;
+    li.querySelector(".x").onclick=()=>{ examParts.splice(i,1); renderExam(); };
+    ul.appendChild(li);
+  });
+}
+bindDrop($("#examDrop"),$("#examInput"), async files=>{
+  for(const file of files){
+    const isImg=file.type.startsWith("image/"), isPdf=file.type==="application/pdf";
+    if(!isImg && !isPdf){ setStatus("⚠️ Chỉ nhận ảnh hoặc PDF.","err"); continue; }
+    const li=document.createElement("li");
+    li.innerHTML=`<span class="name">${isImg?"🖼️":"📄"} ${file.name}</span><span class="st proc"><span class="spin"></span> đang xử lý…</span>`;
+    $("#examList").appendChild(li);
+    try{
+      if(file.size <= 15*1024*1024){
+        const b64=await fileToBase64(file);
+        examParts.push({ name:file.name, mimeType:file.type, part:{ inline_data:{ mime_type:file.type, data:b64 } } });
+      }else{
+        const key=getKey(); if(!key) throw new Error("File lớn cần API key để tải lên.");
+        const up=await uploadFileAPI(file);
+        examParts.push({ name:file.name, mimeType:file.type, part:{ file_data:{ mime_type:up.mimeType, file_uri:up.uri } } });
+      }
+      renderExam();
+    }catch(err){
+      li.querySelector(".st").className="st err"; li.querySelector(".st").textContent=err.message;
+    }
+  }
+});
+
+// ---------- Gọi Gemini (streaming) ----------
+async function generate(userText, appendMode){
+  const key=getKey();
+  if(!key){ setStatus("⚠️ Chưa nhập API key.","err"); return; }
+  if(examParts.length===0){ setStatus("⚠️ Chưa có đề thi. Hãy tải ảnh/PDF đề ở mục 3.","err"); return; }
+
+  try{ await ensureRefsFresh(); }
+  catch(err){ setStatus("❌ Nạp lại sách thất bại: "+err.message,"err"); return; }
+
+  const parts=[];
+  refDocs.filter(d=>d.expiry>Date.now()).forEach(d=>parts.push({ file_data:{ mime_type:d.mimeType, file_uri:d.uri } }));
+  examParts.forEach(e=>parts.push(e.part));
+  parts.push({ text:userText });
+
+  const contents=[];
+  if(appendMode && fullMarkdown){
+    contents.push({ role:"user", parts:[...refDocs.filter(d=>d.expiry>Date.now()).map(d=>({file_data:{mime_type:d.mimeType,file_uri:d.uri}})), ...examParts.map(e=>e.part), {text:"Hãy giải chi tiết đề thi này."}] });
+    contents.push({ role:"model", parts:[{text:fullMarkdown}] });
+    contents.push({ role:"user", parts:[{text:"Tiếp tục giải các câu còn lại, không lặp lại các câu đã giải."}] });
+  }else{
+    contents.push({ role:"user", parts });
+  }
+
+  const body={
+    systemInstruction:{ parts:[{ text:$("#sysPrompt").value }] },
+    contents,
+    generationConfig:{ temperature:0, topP:0.95, maxOutputTokens:65536 }
+  };
+
+  $("#run").disabled=true; $("#continue").disabled=true;
+  setStatus('<span class="spin"></span> AI đang đọc đề và đối chiếu SGK… (đề dài có thể mất 1–3 phút)');
+  if(!appendMode){ fullMarkdown=""; $("#output").innerHTML=""; }
+
+  try{
+    const r=await fetch(`${API}/models/${getModel()}:streamGenerateContent?alt=sse&key=${key}`,{
+      method:"POST", headers:{ "Content-Type":"application/json" }, body:JSON.stringify(body)
+    });
+    if(!r.ok){ const t=await r.text(); throw new Error(safeErr(t)); }
+    const reader=r.body.getReader(); const dec=new TextDecoder(); let buf="";
+    while(true){
+      const {done,value}=await reader.read(); if(done) break;
+      buf+=dec.decode(value,{stream:true});
+      const lines=buf.split("\n"); buf=lines.pop();
+      for(const line of lines){
+        if(!line.startsWith("data:")) continue;
+        const data=line.slice(5).trim(); if(!data||data==="[DONE]") continue;
+        try{
+          const j=JSON.parse(data);
+          const txt=j.candidates?.[0]?.content?.parts?.map(p=>p.text||"").join("")||"";
+          if(txt){ fullMarkdown+=txt; renderOutput(); }
+        }catch(_){}
+      }
+    }
+    renderOutput();
+    setStatus("✅ Xong! Bạn có thể tải Word hoặc bấm “Giải tiếp” nếu đề bị ngắt giữa chừng.","ok");
+    $("#exportDocx").disabled=false; $("#copyBtn").disabled=false;
+  }catch(err){
+    setStatus("❌ "+err.message,"err");
+  }finally{
+    $("#run").disabled=false; $("#continue").disabled=false;
+  }
+}
+function safeErr(t){ try{ return JSON.parse(t).error?.message || t; }catch(_){ return t; } }
+function renderOutput(){ $("#output").innerHTML=marked.parse(fullMarkdown); }
+
+$("#run").addEventListener("click",()=>generate($("#userMsg").value.trim()||"Hãy giải chi tiết đề thi này.",false));
+$("#continue").addEventListener("click",()=>{ if(!fullMarkdown){ setStatus("Chưa có nội dung để giải tiếp.","err"); return; } generate("",true); });
+
+$("#copyBtn").addEventListener("click",async()=>{
+  await navigator.clipboard.writeText(fullMarkdown);
+  setStatus("📋 Đã copy nội dung Markdown. Có thể dán thẳng vào Word.","ok");
+});
+
+// ---------- Xuất Word (.docx) ----------
+$("#exportDocx").addEventListener("click",()=>{
+  const { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType } = docx;
+  const children=[];
+  children.push(new Paragraph({ alignment:AlignmentType.CENTER,
+    children:[new TextRun({ text:"LỜI GIẢI ĐỀ THI MÔN LỊCH SỬ", bold:true, size:32, color:"8A1C1C" })] }));
+  children.push(new Paragraph({ alignment:AlignmentType.CENTER,
+    children:[new TextRun({ text:"Biên soạn theo SGK Kết nối tri thức & Chương trình GDPT 2018", italics:true, size:20, color:"666666" })] }));
+  children.push(new Paragraph({ text:"" }));
+
+  const lines=fullMarkdown.replace(/\r/g,"").split("\n");
+  for(let raw of lines){
+    const line=raw.replace(/\s+$/,"");
+    if(line.trim()===""){ children.push(new Paragraph({ text:"" })); continue; }
+    if(/^---+$/.test(line.trim())){ children.push(new Paragraph({ border:{ bottom:{ color:"CCCCCC", space:1, style:"single", size:6 } } })); continue; }
+    const h=line.match(/^(#{1,6})\s+(.*)$/);
+    if(h){
+      const lvl=h[1].length;
+      children.push(new Paragraph({
+        heading: lvl<=1?HeadingLevel.HEADING_1:lvl===2?HeadingLevel.HEADING_2:HeadingLevel.HEADING_3,
+        children: inlineRuns(h[2], { headingColor:"8A1C1C" })
+      }));
+      continue;
+    }
+    const b=line.match(/^(\s*)([-*])\s+(.*)$/);
+    if(b){
+      const level=Math.min(3, Math.floor(b[1].length/2));
+      children.push(new Paragraph({ bullet:{ level }, children:inlineRuns(b[3]) }));
+      continue;
+    }
+    children.push(new Paragraph({ children:inlineRuns(line) }));
+  }
+
+  const doc=new Document({
+    styles:{ default:{ document:{ run:{ font:"Times New Roman", size:26 } } } },
+    sections:[{ properties:{}, children }]
+  });
+  Packer.toBlob(doc).then(blob=>{
+    const url=URL.createObjectURL(blob); const a=document.createElement("a");
+    a.href=url; a.download="Loi-giai-de-Lich-su.docx"; a.click();
+    setTimeout(()=>URL.revokeObjectURL(url),1000);
+    setStatus("⬇ Đã tải file Word. Mở bằng Microsoft Word hoặc Google Docs để chỉnh sửa/in.","ok");
+  });
+});
+// Inline **bold** -> TextRun[]
+function inlineRuns(text, opt={}){
+  const runs=[]; const parts=text.split(/(\*\*[^*]+\*\*)/g);
+  for(const p of parts){
+    if(!p) continue;
+    const m=p.match(/^\*\*([^*]+)\*\*$/);
+    if(m) runs.push(new docx.TextRun({ text:m[1], bold:true, color:opt.headingColor }));
+    else runs.push(new docx.TextRun({ text:p.replace(/`/g,""), color:opt.headingColor }));
+  }
+  return runs.length?runs:[new docx.TextRun({ text:"", color:opt.headingColor })];
+}
+
+init();
+</script>
+</body>
+</html>
