@@ -436,11 +436,11 @@ bindDrop($("#examDrop"),$("#examInput"), async files=>{
     try{
       if(file.size <= 15*1024*1024){
         const b64=await fileToBase64(file);
-        examParts.push({ name:file.name, mimeType:file.type, part:{ inline_data:{ mime_type:file.type, data:b64 } } });
+        examParts.push({ name:file.name, mimeType:file.type, part:{ inlineData:{ mimeType:file.type, data:b64 } } });
       }else{
         const key=getKey(); if(!key) throw new Error("File lớn cần API key để tải lên.");
         const up=await uploadFileAPI(file);
-        examParts.push({ name:file.name, mimeType:file.type, part:{ file_data:{ mime_type:up.mimeType, file_uri:up.uri } } });
+        examParts.push({ name:file.name, mimeType:file.type, part:{ fileData:{ mimeType:up.mimeType, fileUri:up.uri } } });
       }
       renderExam();
     }catch(err){
@@ -458,7 +458,7 @@ async function generate(userText, appendMode){
   try{ await ensureRefsFresh(); }
   catch(err){ setStatus("❌ Nạp lại sách thất bại: "+err.message,"err"); return; }
 
-  const bookParts = refDocs.filter(refFresh).map(d=>({ file_data:{ mime_type:d.mimeType, file_uri:d.uri } }));
+  const bookParts = refDocs.filter(refFresh).map(d=>({ fileData:{ mimeType:d.mimeType, fileUri:d.uri } }));
   const parts=[...bookParts, ...examParts.map(e=>e.part), { text:userText }];
 
   const contents=[];
@@ -484,7 +484,7 @@ async function generate(userText, appendMode){
     const r=await fetch(`${API}/models/${getModel()}:streamGenerateContent?alt=sse&key=${key}`,{
       method:"POST", headers:{ "Content-Type":"application/json" }, body:JSON.stringify(body)
     });
-    if(!r.ok){ const t=await r.text(); throw new Error(safeErr(t)); }
+    if(!r.ok){ const t=await r.text(); $("#output").innerHTML=`<b style="color:#c0392b">Lỗi thô từ Gemini (chụp gửi để sửa):</b><pre style="white-space:pre-wrap;font-size:12px;background:#fdf3f2;padding:10px;border-radius:8px;overflow:auto">${t.replace(/</g,"&lt;").slice(0,2000)}</pre>`; throw new Error(safeErr(t)); }
     const reader=r.body.getReader(); const dec=new TextDecoder(); let buf="";
     while(true){
       const {done,value}=await reader.read(); if(done) break;
