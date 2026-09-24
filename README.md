@@ -44,3 +44,20 @@ Mở trực tiếp file `index.html` bằng trình duyệt (nhấp đúp). Dán 
 
 - API key chỉ lưu trong `localStorage` của trình duyệt trên máy người dùng.
 - Mỗi giáo viên dùng key riêng của mình. Dữ liệu đề thi gửi thẳng tới Google Gemini, không qua máy chủ trung gian nào.
+
+---
+
+## App phụ: Luyện Nghe & Đọc Tiếng Anh Mỹ mỗi ngày
+
+Thư mục [`luyen-tieng-anh/`](./luyen-tieng-anh/) chứa một app tĩnh khác giúp luyện **nghe (~15 phút)**
+và **đọc (~15-20 phút)** hội thoại tiếng Anh Mỹ thông dụng mỗi ngày.
+
+- Có sẵn ~20 hội thoại đời thường (gọi cà phê, phỏng vấn, khám bệnh, sân bay, ngân hàng...),
+  tự động đổi theo ngày, dùng được **offline**, không cần Internet.
+- Nghe bằng giọng đọc máy (Web Speech API, có sẵn trên trình duyệt), chỉnh được tốc độ, phát từng câu hoặc cả bài.
+- Đọc có bản dịch tiếng Việt kèm theo và danh sách từ vựng/cụm từ trọng tâm.
+- Có đồng hồ đếm mục tiêu 15 phút nghe / 15-20 phút đọc, theo dõi chuỗi ngày luyện tập (streak) và lịch 28 ngày gần nhất.
+- Tùy chọn: dán API key Gemini (miễn phí, giống mục 1 ở trên) để AI **tạo hội thoại mới hoàn toàn** mỗi ngày thay vì dùng kho có sẵn.
+
+Mở trực tiếp `luyen-tieng-anh/index.html` bằng trình duyệt, hoặc truy cập qua GitHub Pages tại
+`https://<tên-tài-khoản>.github.io/<tên-repo>/luyen-tieng-anh/`.

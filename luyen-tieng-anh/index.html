@@ -1,0 +1,417 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Luyện Nghe & Đọc Tiếng Anh Mỹ mỗi ngày</title>
+<style>
+  :root{
+    --bg:#0f1720; --card:#182233; --card2:#1f2c42; --text:#e8edf5; --muted:#9db0c9;
+    --accent:#4da3ff; --accent2:#3ddc97; --danger:#ff6b6b; --border:#2a3752;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;background:var(--bg);color:var(--text);}
+  .wrap{max-width:820px;margin:0 auto;padding:20px 16px 60px;}
+  header{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px;margin-bottom:18px;}
+  header h1{font-size:1.3rem;margin:0;}
+  header .sub{color:var(--muted);font-size:.85rem;}
+  .streak{background:var(--card2);border:1px solid var(--border);border-radius:12px;padding:8px 14px;font-size:.9rem;white-space:nowrap;}
+  .tabs{display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;}
+  .tab{background:var(--card);border:1px solid var(--border);color:var(--text);padding:9px 16px;border-radius:10px;cursor:pointer;font-size:.9rem;}
+  .tab.active{background:var(--accent);border-color:var(--accent);color:#04121f;font-weight:600;}
+  .card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:18px;margin-bottom:16px;}
+  .card h2{margin-top:0;font-size:1.1rem;}
+  .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center;}
+  button{background:var(--accent);color:#04121f;border:none;padding:9px 14px;border-radius:10px;font-weight:600;cursor:pointer;font-size:.88rem;}
+  button.secondary{background:var(--card2);color:var(--text);border:1px solid var(--border);}
+  button.ghost{background:transparent;color:var(--accent);border:1px solid var(--border);}
+  button:disabled{opacity:.5;cursor:not-allowed;}
+  input[type=text],input[type=password],select{background:var(--card2);border:1px solid var(--border);color:var(--text);padding:8px 10px;border-radius:8px;font-size:.88rem;}
+  .tags span{display:inline-block;background:var(--card2);color:var(--muted);border-radius:20px;padding:3px 10px;font-size:.72rem;margin-right:6px;}
+  .dialogue-line{display:flex;gap:10px;padding:10px 0;border-bottom:1px dashed var(--border);align-items:flex-start;}
+  .dialogue-line:last-child{border-bottom:none;}
+  .dialogue-line.active{background:rgba(77,163,255,.08);border-radius:8px;}
+  .speaker{min-width:76px;font-weight:700;color:var(--accent2);font-size:.85rem;padding-top:2px;}
+  .lines-en{font-size:1.02rem;line-height:1.5;}
+  .lines-vi{font-size:.88rem;color:var(--muted);margin-top:3px;}
+  .play-line{background:none;border:none;color:var(--muted);cursor:pointer;font-size:1rem;padding:2px 6px;}
+  .play-line:hover{color:var(--accent);}
+  .vocab-item{padding:8px 0;border-bottom:1px solid var(--border);}
+  .vocab-item:last-child{border-bottom:none;}
+  .vocab-item b{color:var(--accent2);}
+  .timer{font-size:2.1rem;font-weight:700;text-align:center;margin:6px 0;}
+  .progress-bar{height:8px;background:var(--card2);border-radius:6px;overflow:hidden;margin:8px 0 14px;}
+  .progress-bar > div{height:100%;background:var(--accent2);transition:width .3s;}
+  .muted{color:var(--muted);font-size:.85rem;}
+  .goal-done{color:var(--accent2);font-weight:700;}
+  footer{color:var(--muted);font-size:.78rem;text-align:center;margin-top:28px;}
+  details summary{cursor:pointer;color:var(--accent);font-size:.85rem;margin-top:4px;}
+  .calendar{display:grid;grid-template-columns:repeat(7,1fr);gap:5px;margin-top:8px;}
+  .cal-day{aspect-ratio:1;border-radius:6px;background:var(--card2);}
+  .cal-day.done{background:var(--accent2);}
+  textarea{width:100%;background:var(--card2);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:8px;font-size:.85rem;min-height:60px;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>🇺🇸 Luyện Nghe &amp; Đọc Tiếng Anh Mỹ</h1>
+      <div class="sub">Hội thoại đời thường thay đổi mỗi ngày — nghe ~15 phút, đọc ~15-20 phút</div>
+    </div>
+    <div class="streak" id="streakBox">🔥 0 ngày liên tiếp</div>
+  </header>
+
+  <div class="tabs">
+    <button class="tab active" data-tab="today">Hôm nay</button>
+    <button class="tab" data-tab="listen">🎧 Nghe</button>
+    <button class="tab" data-tab="read">📖 Đọc</button>
+    <button class="tab" data-tab="progress">📈 Tiến độ</button>
+    <button class="tab" data-tab="settings">⚙️ Cài đặt</button>
+  </div>
+
+  <div id="panel-today" class="panel"></div>
+  <div id="panel-listen" class="panel" style="display:none"></div>
+  <div id="panel-read" class="panel" style="display:none"></div>
+  <div id="panel-progress" class="panel" style="display:none"></div>
+  <div id="panel-settings" class="panel" style="display:none"></div>
+
+  <footer>Chạy hoàn toàn trong trình duyệt — không cần server. Giọng đọc dùng Web Speech API có sẵn của trình duyệt (Chrome/Edge trên máy tính cho chất lượng giọng Mỹ tốt nhất).</footer>
+</div>
+
+<script src="dialogues.js"></script>
+<script>
+const LS = {
+  streak: "eng_streak_v1",
+  lastReadDate: "eng_last_read_v1",
+  lastListenDate: "eng_last_listen_v1",
+  history: "eng_history_v1",
+  apiKey: "eng_gemini_key_v1",
+  aiCache: "eng_ai_cache_v1",
+  rate: "eng_rate_v1"
+};
+
+function todayStr(d=new Date()){ return d.toISOString().slice(0,10); }
+function dayIndex(){
+  const start = new Date(Date.UTC(2024,0,1));
+  const now = new Date(Date.UTC(new Date().getFullYear(), new Date().getMonth(), new Date().getDate()));
+  return Math.floor((now-start)/86400000);
+}
+function getHistory(){ try{return JSON.parse(localStorage.getItem(LS.history)||"{}")}catch(e){return {}} }
+function markDone(kind){
+  const h = getHistory();
+  const t = todayStr();
+  h[t] = h[t] || {};
+  h[t][kind] = true;
+  localStorage.setItem(LS.history, JSON.stringify(h));
+  updateStreak();
+  renderProgress();
+}
+function updateStreak(){
+  const h = getHistory();
+  let streak = 0;
+  let d = new Date();
+  while(true){
+    const key = todayStr(d);
+    const entry = h[key];
+    if(entry && (entry.read || entry.listen)){
+      streak++;
+      d.setDate(d.getDate()-1);
+    } else break;
+  }
+  document.getElementById("streakBox").textContent = `🔥 ${streak} ngày liên tiếp`;
+}
+
+let currentDialogue = null;
+function pickTodayDialogue(){
+  const cacheRaw = localStorage.getItem(LS.aiCache);
+  if(cacheRaw){
+    try{
+      const cache = JSON.parse(cacheRaw);
+      if(cache.date === todayStr()) return cache.dialogue;
+    }catch(e){}
+  }
+  const idx = dayIndex() % DIALOGUE_BANK.length;
+  return DIALOGUE_BANK[idx];
+}
+
+function renderToday(){
+  currentDialogue = pickTodayDialogue();
+  const el = document.getElementById("panel-today");
+  const tags = (currentDialogue.tags||[]).map(t=>`<span>${t}</span>`).join("");
+  el.innerHTML = `
+    <div class="card">
+      <div class="muted">Chủ đề hôm nay</div>
+      <h2>${currentDialogue.title_en}</h2>
+      <div class="muted" style="margin-top:-8px">${currentDialogue.title_vi}</div>
+      <div class="tags" style="margin:10px 0">${tags}</div>
+      <p class="muted">Gợi ý lịch trình: <b>15 phút nghe</b> hội thoại này (tab 🎧 Nghe), sau đó <b>15-20 phút đọc</b> lại kỹ + học từ vựng (tab 📖 Đọc).</p>
+      <div class="row">
+        <button onclick="switchTab('listen')">🎧 Bắt đầu nghe</button>
+        <button class="secondary" onclick="switchTab('read')">📖 Bắt đầu đọc</button>
+        <button class="ghost" onclick="regenerateWithAI()">✨ Tạo hội thoại mới bằng AI (tùy chọn)</button>
+      </div>
+      <div id="aiStatus" class="muted" style="margin-top:8px"></div>
+    </div>`;
+}
+
+// ---------- LISTENING ----------
+let listenTimerId=null, listenSeconds=0, isSpeaking=false, currentLineIdx=-1;
+const LISTEN_GOAL = 15*60;
+
+function renderListen(){
+  const el = document.getElementById("panel-listen");
+  const savedRate = parseFloat(localStorage.getItem(LS.rate)||"1");
+  el.innerHTML = `
+    <div class="card">
+      <h2>🎧 Nghe: ${currentDialogue.title_en}</h2>
+      <div class="row" style="margin-bottom:10px">
+        <label class="muted">Tốc độ đọc:</label>
+        <select id="rateSelect">
+          <option value="0.75">Chậm (0.75x)</option>
+          <option value="1">Bình thường (1x)</option>
+          <option value="1.25">Nhanh (1.25x)</option>
+        </select>
+        <button id="playAllBtn">▶ Phát toàn bộ</button>
+        <button class="secondary" id="stopBtn">⏹ Dừng</button>
+        <label class="muted" style="margin-left:auto"><input type="checkbox" id="hideTextChk"> Ẩn chữ (chỉ nghe)</label>
+      </div>
+      <div class="timer" id="listenTimer">00:00 / 15:00</div>
+      <div class="progress-bar"><div id="listenProgress" style="width:0%"></div></div>
+      <div id="listenGoalMsg" class="muted"></div>
+      <div id="linesBox" style="margin-top:12px"></div>
+    </div>`;
+  document.getElementById("rateSelect").value = savedRate;
+  document.getElementById("rateSelect").onchange = e=>localStorage.setItem(LS.rate, e.target.value);
+  document.getElementById("playAllBtn").onclick = playAllLines;
+  document.getElementById("stopBtn").onclick = stopSpeaking;
+  document.getElementById("hideTextChk").onchange = e=>{
+    document.getElementById("linesBox").classList.toggle("hidden-text", e.target.checked);
+  };
+  renderLines();
+  startListenTimer();
+}
+
+function renderLines(){
+  const box = document.getElementById("linesBox");
+  const hide = document.getElementById("hideTextChk")?.checked;
+  box.innerHTML = currentDialogue.lines.map((l,i)=>`
+    <div class="dialogue-line ${i===currentLineIdx?'active':''}" data-i="${i}">
+      <button class="play-line" onclick="playLine(${i})">🔊</button>
+      <div style="flex:1">
+        <div class="speaker">${l.s}</div>
+        <div class="lines-en" style="${hide?'filter:blur(6px)':''}">${l.en}</div>
+      </div>
+    </div>`).join("");
+}
+
+function getVoice(){
+  const voices = speechSynthesis.getVoices();
+  return voices.find(v=>v.lang==="en-US" && /female|Samantha|Google US English/i.test(v.name))
+      || voices.find(v=>v.lang==="en-US")
+      || voices.find(v=>v.lang && v.lang.startsWith("en"))
+      || null;
+}
+function speak(text, onend){
+  if(!('speechSynthesis' in window)){ alert("Trình duyệt của bạn không hỗ trợ đọc giọng nói (Web Speech API). Hãy dùng Chrome hoặc Edge."); return; }
+  speechSynthesis.cancel();
+  const u = new SpeechSynthesisUtterance(text);
+  u.lang = "en-US";
+  const v = getVoice(); if(v) u.voice = v;
+  u.rate = parseFloat(document.getElementById("rateSelect")?.value || localStorage.getItem(LS.rate) || "1");
+  u.onend = ()=>{ isSpeaking=false; onend && onend(); };
+  isSpeaking = true;
+  speechSynthesis.speak(u);
+}
+function stopSpeaking(){ speechSynthesis.cancel(); isSpeaking=false; currentLineIdx=-1; renderLines(); }
+function playLine(i){
+  currentLineIdx = i;
+  renderLines();
+  speak(currentDialogue.lines[i].en, ()=>{ currentLineIdx=-1; renderLines(); });
+}
+function playAllLines(){
+  let i = 0;
+  function next(){
+    if(i>=currentDialogue.lines.length){ currentLineIdx=-1; renderLines(); return; }
+    currentLineIdx = i; renderLines();
+    speak(currentDialogue.lines[i].en, ()=>{ i++; next(); });
+  }
+  next();
+}
+function startListenTimer(){
+  if(listenTimerId) clearInterval(listenTimerId);
+  listenSeconds = 0;
+  listenTimerId = setInterval(()=>{
+    listenSeconds++;
+    const m = String(Math.floor(listenSeconds/60)).padStart(2,"0");
+    const s = String(listenSeconds%60).padStart(2,"0");
+    document.getElementById("listenTimer").textContent = `${m}:${s} / 15:00`;
+    const pct = Math.min(100, listenSeconds/LISTEN_GOAL*100);
+    document.getElementById("listenProgress").style.width = pct+"%";
+    if(listenSeconds===LISTEN_GOAL){
+      document.getElementById("listenGoalMsg").innerHTML = `<span class="goal-done">✅ Đã đạt mục tiêu 15 phút nghe hôm nay! Tuyệt vời.</span>`;
+      markDone("listen");
+    }
+  },1000);
+}
+
+// ---------- READING ----------
+let readTimerId=null, readSeconds=0;
+const READ_GOAL = 17*60; // giữa 15-20 phút
+
+function renderRead(){
+  const el = document.getElementById("panel-read");
+  const vocabHtml = (currentDialogue.vocab||[]).map(v=>`
+    <div class="vocab-item"><b>${v.w}</b> — ${v.m}</div>`).join("");
+  el.innerHTML = `
+    <div class="card">
+      <h2>📖 Đọc: ${currentDialogue.title_en}</h2>
+      <div class="row" style="margin-bottom:6px">
+        <label class="muted"><input type="checkbox" id="showViChk" checked> Hiện bản dịch tiếng Việt</label>
+      </div>
+      <div class="timer" id="readTimer">00:00 / 17:00</div>
+      <div class="progress-bar"><div id="readProgress" style="width:0%"></div></div>
+      <div id="readGoalMsg" class="muted"></div>
+      <div id="readLines" style="margin-top:10px"></div>
+      <details style="margin-top:14px">
+        <summary>📚 Từ vựng &amp; cụm từ trọng tâm (${(currentDialogue.vocab||[]).length})</summary>
+        <div style="margin-top:8px">${vocabHtml}</div>
+      </details>
+    </div>`;
+  document.getElementById("showViChk").onchange = renderReadLines;
+  renderReadLines();
+  startReadTimer();
+}
+function renderReadLines(){
+  const showVi = document.getElementById("showViChk").checked;
+  document.getElementById("readLines").innerHTML = currentDialogue.lines.map(l=>`
+    <div class="dialogue-line">
+      <div style="flex:1">
+        <div class="speaker">${l.s}</div>
+        <div class="lines-en">${l.en}</div>
+        ${showVi?`<div class="lines-vi">${l.vi}</div>`:""}
+      </div>
+    </div>`).join("");
+}
+function startReadTimer(){
+  if(readTimerId) clearInterval(readTimerId);
+  readSeconds = 0;
+  readTimerId = setInterval(()=>{
+    readSeconds++;
+    const m = String(Math.floor(readSeconds/60)).padStart(2,"0");
+    const s = String(readSeconds%60).padStart(2,"0");
+    document.getElementById("readTimer").textContent = `${m}:${s} / 17:00`;
+    const pct = Math.min(100, readSeconds/READ_GOAL*100);
+    document.getElementById("readProgress").style.width = pct+"%";
+    if(readSeconds===READ_GOAL){
+      document.getElementById("readGoalMsg").innerHTML = `<span class="goal-done">✅ Đã đạt mục tiêu đọc hôm nay! Tuyệt vời.</span>`;
+      markDone("read");
+    }
+  },1000);
+}
+
+// ---------- PROGRESS ----------
+function renderProgress(){
+  const el = document.getElementById("panel-progress");
+  const h = getHistory();
+  const days = [];
+  const d = new Date();
+  d.setDate(d.getDate()-27);
+  for(let i=0;i<28;i++){
+    const key = todayStr(d);
+    const done = h[key] && (h[key].read || h[key].listen);
+    days.push(`<div class="cal-day ${done?'done':''}" title="${key}"></div>`);
+    d.setDate(d.getDate()+1);
+  }
+  const totalDays = Object.keys(h).filter(k=>h[k].read||h[k].listen).length;
+  el.innerHTML = `
+    <div class="card">
+      <h2>📈 Tiến độ luyện tập</h2>
+      <p class="muted">Tổng số ngày đã luyện tập: <b>${totalDays}</b> ngày</p>
+      <p class="muted">28 ngày gần nhất (xanh = đã hoàn thành nghe hoặc đọc):</p>
+      <div class="calendar">${days.join("")}</div>
+    </div>`;
+}
+
+// ---------- SETTINGS / AI ----------
+function renderSettings(){
+  const el = document.getElementById("panel-settings");
+  const key = localStorage.getItem(LS.apiKey) || "";
+  el.innerHTML = `
+    <div class="card">
+      <h2>⚙️ Cài đặt</h2>
+      <p class="muted">Ứng dụng có sẵn ${DIALOGUE_BANK.length} hội thoại đời thường, tự động xoay vòng theo ngày (không cần Internet).
+      Nếu muốn có hội thoại <b>hoàn toàn mới do AI tạo</b> mỗi ngày, dán API key Google Gemini (miễn phí) của bạn vào đây —
+      key chỉ lưu trên trình duyệt của bạn, không gửi qua server nào khác.</p>
+      <div class="row">
+        <input type="password" id="apiKeyInput" placeholder="Dán Gemini API key (tùy chọn)" style="min-width:280px" value="${key}">
+        <button onclick="saveApiKey()">Lưu key</button>
+        ${key?`<button class="secondary" onclick="clearApiKey()">Xóa key</button>`:""}
+      </div>
+      <p class="muted" style="margin-top:10px">Lấy API key miễn phí tại: <a href="https://aistudio.google.com/apikey" target="_blank" style="color:var(--accent)">aistudio.google.com/apikey</a></p>
+    </div>`;
+}
+function saveApiKey(){
+  const v = document.getElementById("apiKeyInput").value.trim();
+  if(v) localStorage.setItem(LS.apiKey, v);
+  renderSettings();
+}
+function clearApiKey(){
+  localStorage.removeItem(LS.apiKey);
+  renderSettings();
+}
+
+async function regenerateWithAI(){
+  const key = localStorage.getItem(LS.apiKey);
+  const status = document.getElementById("aiStatus");
+  if(!key){
+    status.innerHTML = `Chưa có API key. Vào tab ⚙️ Cài đặt để thêm key Gemini miễn phí, hoặc dùng luôn hội thoại có sẵn hôm nay.`;
+    switchTab("settings");
+    return;
+  }
+  status.textContent = "Đang tạo hội thoại mới bằng AI...";
+  try{
+    const prompt = `Generate ONE everyday American English conversation (casual, natural, spoken style) for a Vietnamese learner practicing listening and reading. Topic: pick something common in daily American life, different from generic textbook examples. Return ONLY valid JSON, no markdown fences, matching exactly this schema:
+{"title_en": "...", "title_vi": "...", "tags": ["..."], "lines": [{"s":"SpeakerName","en":"English sentence","vi":"Vietnamese translation"}, ... 6 to 9 lines], "vocab": [{"w":"word or phrase","m":"Vietnamese meaning"}, ... 4 to 6 items]}`;
+    const resp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${encodeURIComponent(key)}`, {
+      method: "POST",
+      headers: {"Content-Type":"application/json"},
+      body: JSON.stringify({
+        contents: [{parts:[{text: prompt}]}],
+        generationConfig: {temperature: 0.9}
+      })
+    });
+    if(!resp.ok) throw new Error("HTTP "+resp.status);
+    const data = await resp.json();
+    let text = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
+    text = text.trim().replace(/^```json/i,"").replace(/^```/,"").replace(/```$/,"").trim();
+    const dialogue = JSON.parse(text);
+    localStorage.setItem(LS.aiCache, JSON.stringify({date: todayStr(), dialogue}));
+    status.textContent = "Đã tạo hội thoại mới! Đang tải lại...";
+    renderToday();
+  }catch(e){
+    status.textContent = "Không thể tạo bằng AI (kiểm tra key hoặc kết nối mạng). Vẫn dùng hội thoại có sẵn hôm nay.";
+    console.error(e);
+  }
+}
+
+// ---------- TABS ----------
+function switchTab(name){
+  document.querySelectorAll(".tab").forEach(t=>t.classList.toggle("active", t.dataset.tab===name));
+  document.querySelectorAll(".panel").forEach(p=>p.style.display="none");
+  document.getElementById("panel-"+name).style.display="block";
+  if(name==="today") renderToday();
+  if(name==="listen") renderListen();
+  if(name==="read") renderRead();
+  if(name==="progress") renderProgress();
+  if(name==="settings") renderSettings();
+}
+document.querySelectorAll(".tab").forEach(t=>t.addEventListener("click",()=>switchTab(t.dataset.tab)));
+
+// init
+renderToday();
+updateStreak();
+if('speechSynthesis' in window){ speechSynthesis.onvoiceschanged = ()=>{}; }
+</script>
+</body>
+</html>
