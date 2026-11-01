@@ -84,6 +84,8 @@
     <div class="keyrow">
       <input type="password" id="apiKey" placeholder="Dán API key vào đây (bắt đầu bằng AIza…)">
       <button class="btn-sec" id="toggleKey" type="button">Hiện</button>
+      <button class="btn-primary" id="saveKey" type="button">💾 Lưu key</button>
+      <button class="btn-sec" id="clearKey" type="button" title="Xóa key khỏi trình duyệt này">🗑 Xóa</button>
       <button class="btn-sec" id="checkKey" type="button">🔑 Kiểm tra key</button>
     </div>
     <div id="keyStatus" class="hint"></div>
@@ -97,7 +99,8 @@
         <select id="model"><option value="">— Bấm "Tải danh sách" —</option></select>
       </div>
       <div style="flex:0 0 auto;min-width:0;display:flex;align-items:flex-end">
-        <button class="btn-sec" id="loadModels" type="button">Tải danh sách</button>
+        <button class="btn-accent" id="autoModel" type="button" title="Tự thử các mô hình và chọn bản mạnh nhất mà key của bạn dùng được">🤖 Tự chọn mô hình</button>
+        <button class="btn-sec" id="loadModels" type="button" style="margin-left:6px">Tải danh sách</button>
       </div>
     </div>
     <p class="hint">Nên chọn bản <b>Pro</b> (suy luận mạnh, đọc ảnh/PDF tốt). Bấm <b>Tải danh sách</b> để chọn mô hình mà key của bạn hỗ trợ. Nếu chưa tải, mặc định dùng <code>gemini-3.1-pro-preview</code>.</p>
@@ -241,6 +244,17 @@ function setStatus(msg, cls=""){ const s=$("#status"); s.className=cls; s.innerH
 
 // ---------- Persist settings ----------
 $("#apiKey").addEventListener("change", e => localStorage.setItem(LS.key, e.target.value.trim()));
+$("#saveKey").addEventListener("click", async () => {
+  const key=getKey(); const box=$("#keyStatus");
+  if(!key){ box.innerHTML="⚠️ Chưa nhập API key."; box.style.color="#c0392b"; return; }
+  localStorage.setItem(LS.key, key);
+  box.innerHTML="💾 Đã lưu key vào trình duyệt này. Đang tự chọn mô hình phù hợp…"; box.style.color="#1a7f4b";
+  await autoPickModel();
+});
+$("#clearKey").addEventListener("click", () => {
+  localStorage.removeItem(LS.key); $("#apiKey").value="";
+  const box=$("#keyStatus"); box.innerHTML="🗑 Đã xóa key khỏi trình duyệt này."; box.style.color="#6b7686";
+});
 $("#sysPrompt").addEventListener("change", e => localStorage.setItem(LS.sys, e.target.value));
 $("#toggleKey").addEventListener("click", () => {
   const i=$("#apiKey"); const p=i.type==="password"; i.type=p?"text":"password"; $("#toggleKey").textContent=p?"Ẩn":"Hiện";
@@ -285,6 +299,58 @@ $("#checkKey").addEventListener("click", async () => {
 });
 $("#model").addEventListener("change", e => localStorage.setItem(LS.model, e.target.value));
 
+// ---------- Tự chọn mô hình phù hợp với key ----------
+const MODEL_SKIP=/embed|tts|image|imagen|veo|live|audio|aqa|learnlm|gemma|robotics|computer-use|vision|customtools|deep-research/i;
+function modelScore(n){
+  const m=n.match(/^gemini-(\d+(?:\.\d+)?)-(pro|flash)(-lite)?/);
+  if(!m) return -1;
+  const tier = m[2]==="pro" ? 3 : (m[3] ? 1 : 2);
+  const ver  = parseFloat(m[1]);
+  const stable = /preview|exp|\d{2}-\d{2}/.test(n) ? 0 : 0.5;     // bản ổn định ưu tiên nhẹ
+  return tier*1000 + ver*10 + stable;
+}
+async function fetchModelList(key){
+  const r=await fetch(`${API}/models?key=${key}&pageSize=200`); const j=await r.json();
+  if(!r.ok) throw new Error(j.error?.message||"Lỗi tải danh sách mô hình");
+  return (j.models||[]).filter(m=>(m.supportedGenerationMethods||[]).includes("generateContent"))
+    .map(m=>m.name.replace("models/","")).filter(n=>/^gemini/.test(n)&&!MODEL_SKIP.test(n));
+}
+function fillModelSelect(list, chosen){
+  const sel=$("#model"); sel.innerHTML="";
+  list.forEach(n=>{ const o=document.createElement("option"); o.value=n; o.textContent=n; sel.appendChild(o); });
+  if(chosen){ sel.value=chosen; localStorage.setItem(LS.model, chosen); }
+}
+// Xếp hạng (Pro > Flash > Flash-lite, mới > cũ, ổn định > preview) rồi gọi thử thật từng bản
+async function autoPickModel(){
+  const key=getKey(); const box=$("#keyStatus");
+  const say=(h,c)=>{ box.innerHTML=h; box.style.color=c||"#6b7686"; };
+  if(!key){ say("⚠️ Chưa nhập API key.","#c0392b"); return null; }
+  let list;
+  try{ list=await fetchModelList(key); }catch(err){ say("❌ "+err.message,"#c0392b"); return null; }
+  const ranked=list.filter(n=>modelScore(n)>0).sort((a,b)=>modelScore(b)-modelScore(a));
+  if(!ranked.length){ say("⚠️ Key không có mô hình Gemini nào dùng được.","#b26a00"); return null; }
+  fillModelSelect(ranked.concat(list.filter(n=>!ranked.includes(n))));
+  const tried=[];
+  for(const n of ranked.slice(0,8)){
+    say(`<span class="spin"></span> Đang thử <code>${n}</code>… (${tried.length+1}/${Math.min(8,ranked.length)})`);
+    try{
+      const r=await fetch(`${API}/models/${n}:generateContent?key=${key}`,{ method:"POST", headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({ contents:[{role:"user",parts:[{text:"ping"}]}], generationConfig:{ maxOutputTokens:8, temperature:0 } }) });
+      if(r.ok){
+        fillModelSelect(ranked.concat(list.filter(x=>!ranked.includes(x))), n);
+        const note=tried.length?` (bỏ qua ${tried.map(t=>`<code>${t}</code>`).join(", ")} vì key không dùng được/hết hạn mức)`:"";
+        say(`✅ Đã tự chọn <b>${n}</b> — mô hình mạnh nhất mà key của bạn gọi được${note}.`,"#1a7f4b");
+        return n;
+      }
+      if(r.status===400||r.status===401){ const j=await r.json().catch(()=>({})); if(/API key/i.test(j.error?.message||"")){ say("❌ Key không hợp lệ.","#c0392b"); return null; } }
+    }catch(_){ /* lỗi mạng: thử bản tiếp */ }
+    tried.push(n);
+  }
+  say("⚠️ Không mô hình nào gọi thử thành công (có thể hết quota hôm nay hoặc cần bật thanh toán). Thử lại sau hoặc chọn tay ở danh sách.","#b26a00");
+  return null;
+}
+$("#autoModel").addEventListener("click", autoPickModel);
+
 // ---------- Load models ----------
 $("#loadModels").addEventListener("click", async () => {
   const key=getKey(); if(!key){ setStatus("⚠️ Chưa nhập API key.","err"); return; }
@@ -296,7 +362,7 @@ $("#loadModels").addEventListener("click", async () => {
     const models = (j.models||[])
       .filter(m => (m.supportedGenerationMethods||[]).includes("generateContent"))
       .map(m => m.name.replace("models/",""))
-      .filter(n => /gemini/.test(n));
+      .filter(n => /gemini/.test(n) && !MODEL_SKIP.test(n));
     const sel=$("#model"); sel.innerHTML="";
     const prefer = models.filter(n=>/pro/.test(n)).concat(models.filter(n=>!/pro/.test(n)));
     prefer.forEach(n=>{ const o=document.createElement("option"); o.value=n; o.textContent=n; sel.appendChild(o); });
@@ -508,7 +574,8 @@ async function generate(userText, appendMode){
     const r=await fetch(`${API}/models/${getModel()}:streamGenerateContent?alt=sse&key=${key}`,{
       method:"POST", headers:{ "Content-Type":"application/json" }, body:JSON.stringify(body)
     });
-    if(!r.ok){ const t=await r.text(); $("#output").innerHTML=`<b style="color:#c0392b">Lỗi thô từ Gemini (chụp gửi để sửa):</b><pre style="white-space:pre-wrap;font-size:12px;background:#fdf3f2;padding:10px;border-radius:8px;overflow:auto">${t.replace(/</g,"&lt;").slice(0,2000)}</pre>`; throw new Error(safeErr(t)); }
+    if(!r.ok){ const t=await r.text(); $("#output").innerHTML=`<b style="color:#c0392b">Lỗi thô từ Gemini (chụp gửi để sửa):</b><pre style="white-space:pre-wrap;font-size:12px;background:#fdf3f2;padding:10px;border-radius:8px;overflow:auto">${t.replace(/</g,"&lt;").slice(0,2000)}</pre>`; if(r.status===404||r.status===429||r.status===403) $("#output").insertAdjacentHTML("beforeend",`<p>💡 Mô hình <code>${getModel()}</code> có thể không dùng được với key này. Hãy kéo lên mục 1 và bấm <b>🤖 Tự chọn mô hình</b>.</p>`);
+      throw new Error(safeErr(t)); }
     const reader=r.body.getReader(); const dec=new TextDecoder(); let buf=""; let finishReason="";
     while(true){
       const {done,value}=await reader.read(); if(done) break;
@@ -727,7 +794,7 @@ function inlineRuns(text, opt={}){
   return runs.length?runs:[new docx.TextRun({ text:"", color:opt.headingColor })];
 }
 
-init();
+init().then(()=>{ if(getKey() && !localStorage.getItem(LS.model)) autoPickModel(); });
 </script>
 </body>
 </html>

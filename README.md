@@ -33,7 +33,7 @@ Mở trực tiếp file `index.html` bằng trình duyệt (nhấp đúp). Dán 
 
 ## 4. Cách sử dụng
 
-1. **Mục 1 – Cài đặt:** dán API key → bấm **Tải danh sách** để chọn mô hình (nên chọn bản *Pro*).
+1. **Mục 1 – Cài đặt:** dán API key → bấm **💾 Lưu key**. Trang tự thử các mô hình và chọn bản mạnh nhất mà key của bạn dùng được (Pro > Flash, mới > cũ, ổn định > preview). Có thể bấm **🤖 Tự chọn mô hình** để chọn lại, hoặc **Tải danh sách** để chọn tay.
 2. **Mục 2 – SGK (nên có):** tải PDF SGK Lịch sử 10/11/12 + GDPT 2018 **một lần**. Trang
    ghi nhớ sách ngay trong trình duyệt máy này; các lần sau **tự nạp lại** khi bấm Giải đề —
    không phải chọn lại file. (Mẹo: chỉ nạp sách lớp liên quan đề để chạy nhanh hơn.)
