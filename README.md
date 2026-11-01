@@ -7,6 +7,10 @@ dùng Google Gemini (AI Studio). Bám sát SGK Kết nối tri thức & Chương
 - Chép **đầy đủ đề bài** (cả phương án A/B/C/D, đoạn tư liệu) rồi mới đến **lời giải chi tiết**.
 - Xử lý 3 dạng: trắc nghiệm nhiều lựa chọn, trắc nghiệm đúng/sai, tự luận.
 - **Tự cắt hình minh họa** (bản đồ, tranh ảnh, biểu đồ, lược đồ…) trong ảnh/PDF đề, hiển thị ngay dưới câu hỏi và chèn vào file Word. Bật/tắt bằng ô tích ở mục 3. Nếu AI cắt lệch, bấm **✂ Chỉnh khung** dưới hình rồi kéo chuột/ngón tay vẽ lại khung (hoặc bỏ hình).
+- Xuất Word có **bảng** (Markdown → bảng Word), **bảng đáp án tóm tắt**, tùy chọn tên trường/đề/năm học, cỡ chữ, ẩn dòng nguồn.
+- **Đối chiếu đáp án chuẩn** (dán “1A 2B … 21 ĐSĐS”) để thấy câu AI giải lệch; **giải theo nhóm câu** (VD 1-20, 25).
+- **Lịch sử 20 lần giải gần nhất** lưu trong trình duyệt (kèm ảnh/PDF đề), mở lại để tải Word hoặc chỉnh hình.
+- Chỉnh khung hình: kéo để di chuyển, kéo cạnh/góc để đổi cỡ, kéo ngoài khung để vẽ mới.
 - `Temperature = 0` và **không dùng Google Search** để khóa nguồn, tránh AI bịa kiến thức.
 
 ## 1. Lấy API key (miễn phí)

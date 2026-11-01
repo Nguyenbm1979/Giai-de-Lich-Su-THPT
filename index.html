@@ -183,6 +183,12 @@
     <div id="output"></div>
   </div>
 
+  <div class="card">
+    <h2><span class="num">5</span> Lịch sử các lần giải</h2>
+    <p class="hint">Lưu tự động trong trình duyệt này (tối đa 20 lần gần nhất, kèm cả ảnh/PDF đề để cắt hình lại). Xóa dữ liệu trình duyệt sẽ mất lịch sử.</p>
+    <ul class="files" id="histList"></ul>
+  </div>
+
   <footer>Chạy hoàn toàn trong trình duyệt • Không cần cài đặt • Dùng được trên Windows, macOS, điện thoại</footer>
 </div>
 
@@ -444,8 +450,10 @@ async function uploadFileAPI(file, onProgress){
 // ---------- IndexedDB: ghi nhớ PDF sách ngay trong trình duyệt ----------
 function openIDB(){
   return new Promise((res,rej)=>{
-    const r=indexedDB.open("hsBooks",1);
-    r.onupgradeneeded=e=>{ if(!e.target.result.objectStoreNames.contains("pdfs")) e.target.result.createObjectStore("pdfs",{keyPath:"id"}); };
+    const r=indexedDB.open("hsBooks",2);
+    r.onupgradeneeded=e=>{ const db=e.target.result;
+      if(!db.objectStoreNames.contains("pdfs")) db.createObjectStore("pdfs",{keyPath:"id"});
+      if(!db.objectStoreNames.contains("hist")) db.createObjectStore("hist",{keyPath:"id"}); };
     r.onsuccess=e=>res(e.target.result); r.onerror=()=>rej(r.error);
   });
 }
@@ -588,7 +596,7 @@ function renderExam(){
     ul.appendChild(li);
   });
 }
-bindDrop($("#examDrop"),$("#examInput"), async files=>{
+const addExamFiles = async files=>{
   for(const file of files){
     const isImg=file.type.startsWith("image/"), isPdf=file.type==="application/pdf";
     if(!isImg && !isPdf){ setStatus("⚠️ Chỉ nhận ảnh hoặc PDF.","err"); continue; }
@@ -609,7 +617,50 @@ bindDrop($("#examDrop"),$("#examInput"), async files=>{
       li.querySelector(".st").className="st err"; li.querySelector(".st").textContent=err.message;
     }
   }
-});
+};
+bindDrop($("#examDrop"),$("#examInput"), addExamFiles);
+
+// ---------- Lịch sử các lần giải (IndexedDB) ----------
+let histId=null;
+function histTx(mode){ return openIDB().then(db=>db.transaction("hist",mode).objectStore("hist")); }
+const reqP=r=>new Promise((res,rej)=>{ r.onsuccess=()=>res(r.result); r.onerror=()=>rej(r.error); });
+async function saveHistory(){
+  if(!fullMarkdown) return;
+  try{
+    if(!histId) histId="h"+Date.now();
+    const old=histId && await reqP((await histTx("readonly")).get(histId));
+    const title=(examParts.map(e=>e.name).join(", ")||old?.title||"Đề thi").slice(0,80);
+    const rec={ id:histId, time:old?.time||Date.now(), title, markdown:fullMarkdown,
+      exams:examParts.filter(e=>e.file).map(e=>({ name:e.name, type:e.mimeType, blob:e.file })) };
+    await reqP((await histTx("readwrite")).put(rec));
+    const all=await reqP((await histTx("readonly")).getAll());
+    all.sort((a,b)=>b.time-a.time);
+    for(const o of all.slice(20)) await reqP((await histTx("readwrite")).delete(o.id));
+    renderHistory();
+  }catch(err){ console.warn("Không lưu được lịch sử:",err); }
+}
+async function renderHistory(){
+  const ul=$("#histList"); let all=[];
+  try{ all=await reqP((await histTx("readonly")).getAll()); }catch(_){}
+  all.sort((a,b)=>b.time-a.time); ul.innerHTML="";
+  if(!all.length){ ul.innerHTML='<li class="hint">Chưa có lần giải nào. Kết quả sẽ tự lưu trong trình duyệt này.</li>'; return; }
+  all.forEach(h=>{
+    const li=document.createElement("li");
+    li.innerHTML=`<span class="name">🕘 ${new Date(h.time).toLocaleString("vi-VN")} — ${h.title.replace(/</g,"&lt;")}</span><button class="btn-sec" type="button">Mở</button><button class="x" title="Xóa">✕</button>`;
+    li.querySelector(".btn-sec").onclick=()=>openHistory(h);
+    li.querySelector(".x").onclick=async()=>{ if(!confirm("Xóa lần giải này khỏi lịch sử?")) return; await reqP((await histTx("readwrite")).delete(h.id)); if(histId===h.id) histId=null; renderHistory(); };
+    ul.appendChild(li);
+  });
+}
+async function openHistory(h){
+  examParts=[]; renderExam();
+  try{ await addExamFiles(h.exams.map(e=>new File([e.blob],e.name,{type:e.type}))); }catch(_){}
+  fullMarkdown=h.markdown; histId=h.id; renderOutput();
+  $("#exportDocx").disabled=false; $("#copyBtn").disabled=false;
+  setStatus("🕘 Đã mở lại lần giải trước. Có thể tải Word, chỉnh khung hình hoặc bấm “Giải tiếp”.","ok");
+  try{ compareKey(); }catch(_){}
+  $("#output").scrollIntoView({ behavior:"smooth" });
+}
 
 // ---------- Gọi Gemini (streaming) ----------
 async function generate(userText, appendMode){
@@ -651,7 +702,7 @@ async function generate(userText, appendMode){
 
   $("#run").disabled=true; $("#continue").disabled=true;
   setStatus('<span class="spin"></span> AI đang đọc đề và đối chiếu SGK… (đề dài có thể mất 1–3 phút)');
-  if(!appendMode){ fullMarkdown=""; $("#output").innerHTML=""; }
+  if(!appendMode){ fullMarkdown=""; histId=null; $("#output").innerHTML=""; }
 
   try{
     const r=await fetch(`${API}/models/${getModel()}:streamGenerateContent?alt=sse&key=${key}`,{
@@ -682,6 +733,7 @@ async function generate(userText, appendMode){
       setStatus("✅ Xong! Bạn có thể tải Word hoặc bấm “Giải tiếp” nếu còn thiếu câu.","ok");
     $("#exportDocx").disabled=false; $("#copyBtn").disabled=false;
     try{ compareKey(); }catch(_){}
+    saveHistory();
   }catch(err){
     setStatus("❌ "+err.message,"err");
   }finally{
@@ -706,7 +758,7 @@ async function openFigEditor(idx){
   let box=m[3].replace(/\s+/g,"").split(",").map(Number); if(box.length!==4||box.some(isNaN)) box=[100,100,400,400];
   let src; try{ src=await getPageCanvas(+m[1],+m[2]); }catch(err){ setStatus("❌ "+err.message,"err"); return; }
   const ov=document.createElement("div"); ov.id="figModal";
-  ov.innerHTML='<div class="bar"><b>Kéo chuột/ngón tay trên trang để vẽ khung mới quanh hình</b><button class="btn-primary" data-a="ok" type="button">✔ Lưu khung</button><button class="btn-sec" data-a="del" type="button">🗑 Bỏ hình này</button><button class="btn-sec" data-a="no" type="button">Hủy</button></div>';
+  ov.innerHTML='<div class="bar"><b>Kéo trong khung để di chuyển • kéo cạnh/góc để đổi cỡ • kéo ngoài khung để vẽ mới</b><button class="btn-primary" data-a="ok" type="button">✔ Lưu khung</button><button class="btn-sec" data-a="del" type="button">🗑 Bỏ hình này</button><button class="btn-sec" data-a="no" type="button">Hủy</button></div>';
   const cv=document.createElement("canvas"); const k=Math.min(1,(innerWidth-40)/src.width,1100/src.width);
   cv.width=Math.round(src.width*k); cv.height=Math.round(src.height*k); ov.appendChild(cv); document.body.appendChild(ov);
   const cx=cv.getContext("2d");
@@ -715,19 +767,38 @@ async function openFigEditor(idx){
     const [y1,x1,y2,x2]=box.map((v,i)=>v/1000*(i%2?cv.width:cv.height));
     cx.fillStyle="rgba(0,0,0,.45)"; cx.fillRect(0,0,cv.width,cv.height);
     cx.drawImage(src,x1/k,y1/k,(x2-x1)/k,(y2-y1)/k,x1,y1,x2-x1,y2-y1);
-    cx.strokeStyle="#e11"; cx.lineWidth=2; cx.strokeRect(x1,y1,x2-x1,y2-y1);
+    cx.strokeStyle="#e11"; cx.lineWidth=2; cx.strokeRect(x1,y1,x2-x1,y2-y1); cx.fillStyle="#e11"; [[x1,y1],[x2,y1],[x1,y2],[x2,y2]].forEach(([a,b])=>cx.fillRect(a-4,b-4,8,8));
   }
   draw();
-  let st=null; const pos=e=>{ const r=cv.getBoundingClientRect(); return [Math.min(1000,Math.max(0,(e.clientY-r.top)/r.height*1000)),Math.min(1000,Math.max(0,(e.clientX-r.left)/r.width*1000))]; };
-  cv.onpointerdown=e=>{ cv.setPointerCapture(e.pointerId); st=pos(e); };
-  cv.onpointermove=e=>{ if(!st) return; const q=pos(e); box=[Math.min(st[0],q[0]),Math.min(st[1],q[1]),Math.max(st[0],q[0]),Math.max(st[1],q[1])]; draw(); };
-  cv.onpointerup=()=>{ st=null; };
+  // Kéo trong khung = di chuyển; kéo góc/cạnh = đổi cỡ; kéo ngoài khung = vẽ khung mới
+  let mode=null, st=null, b0=null; const H=16;
+  const pos=e=>{ const r=cv.getBoundingClientRect(); return [Math.min(1000,Math.max(0,(e.clientY-r.top)/r.height*1000)),Math.min(1000,Math.max(0,(e.clientX-r.left)/r.width*1000))]; };
+  function hit(e){
+    const r=cv.getBoundingClientRect(), [y,x]=pos(e), th=H/r.height*1000, tw=H/r.width*1000;
+    const nearL=Math.abs(x-box[1])<tw, nearR=Math.abs(x-box[3])<tw, nearT=Math.abs(y-box[0])<th, nearB=Math.abs(y-box[2])<th;
+    const inX=x>box[1]-tw&&x<box[3]+tw, inY=y>box[0]-th&&y<box[2]+th;
+    const edges={ t:nearT&&inX, b:nearB&&inX, l:nearL&&inY, r:nearR&&inY };
+    if(edges.t||edges.b||edges.l||edges.r) return { m:"resize", edges };
+    if(y>box[0]&&y<box[2]&&x>box[1]&&x<box[3]) return { m:"move" };
+    return { m:"draw" };
+  }
+  cv.onpointerdown=e=>{ cv.setPointerCapture&&cv.setPointerCapture(e.pointerId); const h=hit(e); mode=h; st=pos(e); b0=box.slice(); };
+  cv.onpointermove=e=>{
+    if(!mode){ const h=hit(e); cv.style.cursor=h.m==="move"?"move":h.m==="resize"?((h.edges.l||h.edges.r)&&(h.edges.t||h.edges.b)?"nwse-resize":(h.edges.l||h.edges.r)?"ew-resize":"ns-resize"):"crosshair"; return; }
+    const q=pos(e), dy=q[0]-st[0], dx=q[1]-st[1], cl=v=>Math.min(1000,Math.max(0,v));
+    if(mode.m==="draw") box=[Math.min(st[0],q[0]),Math.min(st[1],q[1]),Math.max(st[0],q[0]),Math.max(st[1],q[1])];
+    else if(mode.m==="move"){ const h=b0[2]-b0[0], w=b0[3]-b0[1]; const y1=Math.min(1000-h,Math.max(0,b0[0]+dy)), x1=Math.min(1000-w,Math.max(0,b0[1]+dx)); box=[y1,x1,y1+h,x1+w]; }
+    else { const n=b0.slice(), ed=mode.edges; if(ed.t) n[0]=cl(b0[0]+dy); if(ed.b) n[2]=cl(b0[2]+dy); if(ed.l) n[1]=cl(b0[1]+dx); if(ed.r) n[3]=cl(b0[3]+dx);
+      box=[Math.min(n[0],n[2]),Math.min(n[1],n[3]),Math.max(n[0],n[2]),Math.max(n[1],n[3])]; }
+    draw();
+  };
+  cv.onpointerup=()=>{ mode=null; };
   ov.onclick=e=>{
     const a=e.target.dataset&&e.target.dataset.a; if(!a) return;
     if(a==="ok"&&(box[2]-box[0]<5||box[3]-box[1]<5)){ alert("Khung quá nhỏ."); return; }
     if(a==="ok"||a==="del"){
       const rep=a==="del"?"":`[[HINH nguon=${m[1]} trang=${m[2]} khung=${box.map(Math.round).join(",")}]]`;
-      fullMarkdown=fullMarkdown.slice(0,m.index)+rep+fullMarkdown.slice(m.index+m[0].length); renderOutput();
+      fullMarkdown=fullMarkdown.slice(0,m.index)+rep+fullMarkdown.slice(m.index+m[0].length); renderOutput(); if(histId) saveHistory();
     }
     ov.remove();
   };
@@ -943,6 +1014,7 @@ function inlineRuns(text, opt={}){
   return runs.length?runs:[new docx.TextRun({ text:"", color:opt.headingColor })];
 }
 
+renderHistory();
 init().then(()=>{ if(getKey() && !localStorage.getItem(LS.model)) autoPickModel(); });
 </script>
 </body>
