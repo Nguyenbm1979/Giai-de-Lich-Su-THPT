@@ -5,13 +5,24 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Trợ lý giải đề Lịch sử THPT</title>
 <style>
-  #keyReport table{border-collapse:collapse;font-size:13px;margin:8px 0}#keyReport td,#keyReport th{border:1px solid var(--line);padding:3px 8px;text-align:center}#keyReport .bad{background:#fdecea;color:#c0392b;font-weight:700}#keyReport .good{color:#1a7f4b}
-  #output table{border-collapse:collapse;margin:8px 0}#output th,#output td{border:1px solid #bbb;padding:4px 8px}
+  #keyReport table{border-collapse:collapse;font-size:13px;margin:8px 0}#keyReport td,#keyReport th{border:1px solid var(--line);padding:3px 8px;text-align:center}#keyReport .bad{background:var(--errbg);color:#c0392b;font-weight:700}#keyReport .good{color:#1a7f4b}
+  #output table{border-collapse:collapse;margin:8px 0}#output th,#output td{border:1px solid var(--dropLine);padding:4px 8px}
   :root{
     --bg:#f4f6fb; --card:#ffffff; --ink:#1f2733; --muted:#6b7686;
     --line:#e3e8f0; --brand:#8a1c1c; --brand2:#b8342f; --accent:#0b6b5f;
     --ok:#1a7f4b; --warn:#b26a00; --err:#c0392b; --shadow:0 2px 10px rgba(20,30,50,.06);
+    --field:#fff; --soft:#eef1f6; --soft2:#e4e9f1; --drop:#fbfcfe; --dropOver:#fff7f6; --dropLine:#cfd6e2; --li:#fafbfd;
+    --okbg:#e6f5ec; --warnbg:#fff3e0; --errbg:#fdecea; --brandText:#8a1c1c;
   }
+  :root[data-theme=dark]{
+    --bg:#10141b; --card:#1a2029; --ink:#e6eaf0; --muted:#97a3b5; --line:#2b3441; --shadow:none;
+    --field:#121820; --soft:#262e3a; --soft2:#303a49; --drop:#151b24; --dropOver:#2a1d1d; --dropLine:#3a4556; --li:#161c25;
+    --okbg:#14301f; --warnbg:#3a2a10; --errbg:#3a1a17; --brandText:#ff9a93; --ok:#4cc38a; --warn:#e8a64a; --err:#ff7b6f; --brand:#a83431; --brand2:#d0524d;
+  }
+  :root[data-theme=dark] a{color:#ff9a93}
+  :root[data-theme=dark] #output img.fig,:root[data-theme=dark] #figModal canvas{background:#fff}
+  #themeBtn{position:absolute;top:14px;right:16px;background:rgba(255,255,255,.18);color:#fff;border:1px solid rgba(255,255,255,.35);padding:5px 10px}
+  header{position:relative}
   *{box-sizing:border-box}
   body{margin:0;font-family:"Segoe UI",Roboto,Arial,sans-serif;background:var(--bg);color:var(--ink);line-height:1.55}
   header{background:linear-gradient(100deg,var(--brand),var(--brand2));color:#fff;padding:18px 20px}
@@ -22,7 +33,7 @@
   .card h2{margin:0 0 10px;font-size:15px;display:flex;align-items:center;gap:8px}
   .card h2 .num{background:var(--brand);color:#fff;width:22px;height:22px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:12px;flex:none}
   label{font-size:13px;font-weight:600;display:block;margin:8px 0 4px}
-  input[type=text],input[type=password],textarea,select{width:100%;padding:9px 10px;border:1px solid var(--line);border-radius:8px;font-size:13px;font-family:inherit;background:#fff;color:var(--ink)}
+  input[type=text],input[type=password],textarea,select{width:100%;padding:9px 10px;border:1px solid var(--line);border-radius:8px;font-size:13px;font-family:inherit;background:var(--field);color:var(--ink)}
   textarea{resize:vertical;min-height:90px}
   .hint{font-size:12px;color:var(--muted);margin:4px 0 0}
   .row{display:flex;gap:10px;flex-wrap:wrap}
@@ -31,32 +42,32 @@
   .btn-primary{background:var(--brand);color:#fff}
   .btn-primary:hover{background:var(--brand2)}
   .btn-primary:disabled{background:#c9a2a2;cursor:not-allowed}
-  .btn-sec{background:#eef1f6;color:var(--ink);border:1px solid var(--line)}
-  .btn-sec:hover{background:#e4e9f1}
+  .btn-sec{background:var(--soft);color:var(--ink);border:1px solid var(--line)}
+  .btn-sec:hover{background:var(--soft2)}
   .btn-accent{background:var(--accent);color:#fff}
   .btn-accent:hover{filter:brightness(1.08)}
-  .drop{border:2px dashed #cfd6e2;border-radius:10px;padding:18px;text-align:center;color:var(--muted);font-size:13px;background:#fbfcfe;cursor:pointer;transition:.15s}
-  .drop:hover,.drop.over{border-color:var(--brand2);background:#fff7f6;color:var(--ink)}
+  .drop{border:2px dashed var(--dropLine);border-radius:10px;padding:18px;text-align:center;color:var(--muted);font-size:13px;background:var(--drop);cursor:pointer;transition:.15s}
+  .drop:hover,.drop.over{border-color:var(--brand2);background:var(--dropOver);color:var(--ink)}
   .files{list-style:none;padding:0;margin:10px 0 0}
-  .files li{display:flex;align-items:center;gap:8px;padding:7px 10px;border:1px solid var(--line);border-radius:8px;margin-bottom:6px;font-size:12.5px;background:#fafbfd}
+  .files li{display:flex;align-items:center;gap:8px;padding:7px 10px;border:1px solid var(--line);border-radius:8px;margin-bottom:6px;font-size:12.5px;background:var(--li)}
   .files li .name{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .files li .st{font-size:11px;padding:2px 7px;border-radius:20px;white-space:nowrap}
-  .st.ok{background:#e6f5ec;color:var(--ok)} .st.proc{background:#fff3e0;color:var(--warn)} .st.err{background:#fdecea;color:var(--err)}
+  .st.ok{background:var(--okbg);color:var(--ok)} .st.proc{background:var(--warnbg);color:var(--warn)} .st.err{background:var(--errbg);color:var(--err)}
   .files li .x{background:none;padding:2px 6px;color:var(--muted);font-weight:700}
   .files li .x:hover{color:var(--err)}
-  details{border:1px solid var(--line);border-radius:10px;padding:0 12px;margin-top:8px;background:#fbfcfe}
+  details{border:1px solid var(--line);border-radius:10px;padding:0 12px;margin-top:8px;background:var(--drop)}
   details summary{cursor:pointer;padding:10px 0;font-weight:600;font-size:13px}
   .toolbar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}
   #status{font-size:12.5px;color:var(--muted);min-height:18px;margin-top:8px}
   #status.err{color:var(--err)} #status.ok{color:var(--ok)}
-  #output{border:1px solid var(--line);border-radius:10px;padding:16px 18px;background:#fff;min-height:60px;font-size:14px}
+  #output{border:1px solid var(--line);border-radius:10px;padding:16px 18px;background:var(--card);min-height:60px;font-size:14px}
   #output:empty::before{content:"Kết quả lời giải sẽ hiển thị ở đây…";color:var(--muted)}
-  #output h1,#output h2,#output h3{color:var(--brand);border-bottom:1px solid var(--line);padding-bottom:4px}
+  #output h1,#output h2,#output h3{color:var(--brandText);border-bottom:1px solid var(--line);padding-bottom:4px}
   #output h2{font-size:16px;margin-top:18px}
   #output ul{margin:6px 0}
   #output hr{border:none;border-top:1px solid var(--line);margin:14px 0}
   #output p{margin:6px 0}
-  .badge{font-size:11px;background:#eef1f6;border:1px solid var(--line);border-radius:20px;padding:2px 9px;color:var(--muted)}
+  .badge{font-size:11px;background:var(--soft);border:1px solid var(--line);border-radius:20px;padding:2px 9px;color:var(--muted)}
   .spin{display:inline-block;width:13px;height:13px;border:2px solid #ccc;border-top-color:var(--brand);border-radius:50%;animation:sp .7s linear infinite;vertical-align:-2px}
   @keyframes sp{to{transform:rotate(360deg)}}
   .keyrow{display:flex;gap:8px}.keyrow input{flex:1}
@@ -64,15 +75,23 @@
   a{color:var(--brand2)}
   #output img.fig{display:block;max-width:100%;max-height:420px;margin:8px auto;border:1px solid var(--line);border-radius:4px}
   .figbox{position:relative;text-align:center;margin:8px 0}
-  .figbox button{position:absolute;top:6px;right:6px;font-size:12px;padding:3px 8px;border:1px solid var(--line);background:#fff;border-radius:6px;cursor:pointer;opacity:.9}
+  .figbox button{position:absolute;top:6px;right:6px;font-size:12px;padding:3px 8px;border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:6px;cursor:pointer;opacity:.9}
   #figModal{position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:50;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;overflow:auto;padding:16px}
-  #figModal .bar{background:#fff;border-radius:8px;padding:10px 14px;margin-bottom:10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;max-width:100%}
+  #figModal .bar{background:var(--card);color:var(--ink);border-radius:8px;padding:10px 14px;margin-bottom:10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;max-width:100%}
   #figModal canvas{background:#fff;cursor:crosshair;touch-action:none;max-width:100%}
   #output .figwait{color:var(--muted);font-size:13px;font-style:italic}
+  @media (max-width:640px){
+    .wrap{padding:10px} .card{padding:12px;border-radius:10px} header{padding:14px 56px 14px 14px} header h1{font-size:17px} header p{font-size:12px}
+    .row>*{min-width:100%} .toolbar button{flex:1 1 45%} .toolbar>span{display:none}
+    .keyrow{flex-wrap:wrap} .keyrow input{flex:1 1 100%} .keyrow button{flex:1 1 auto}
+    #output{padding:12px;font-size:14.5px;overflow-x:auto} button{padding:11px 14px;min-height:42px} input[type=text],input[type=password],select,textarea{font-size:16px}
+    .files li{flex-wrap:wrap} .files li .name{white-space:normal;flex:1 1 100%}
+  }
 </style>
 </head>
 <body>
 <header>
+  <button id="themeBtn" type="button" title="Đổi giao diện sáng/tối">🌙</button>
   <h1>📜 Trợ lý giải đề Lịch sử THPT</h1>
   <p>Tải ảnh/PDF đề thi → AI giải chi tiết theo SGK Kết nối tri thức & GDPT 2018 → xuất file Word (.docx)</p>
 </header>
@@ -140,8 +159,8 @@
   <!-- 3. Đề thi -->
   <div class="card">
     <h2><span class="num">3</span> Đề thi cần giải</h2>
-    <div class="drop" id="examDrop">🖼️ Bấm hoặc kéo–thả <b>ảnh</b> hoặc <b>PDF đề thi</b> vào đây</div>
-    <input type="file" id="examInput" accept="image/*,application/pdf" multiple hidden>
+    <div class="drop" id="examDrop">🖼️ Bấm hoặc kéo–thả <b>ảnh</b>, <b>PDF</b> hoặc <b>Word (.docx)</b> đề thi vào đây</div>
+    <input type="file" id="examInput" accept="image/*,application/pdf,.docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document" multiple hidden>
     <ul class="files" id="examList"></ul>
     <label style="margin-top:12px;display:flex;gap:8px;align-items:flex-start;font-weight:600">
       <input type="checkbox" id="optFigures" checked style="width:auto;margin-top:3px">
@@ -166,6 +185,7 @@
       <button class="btn-sec" id="continue" title="Nếu AI bị ngắt giữa chừng">↻ Giải tiếp</button>
       <span style="flex:1"></span>
       <button class="btn-accent" id="exportDocx" disabled>⬇ Tải Word (.docx)</button>
+      <button class="btn-sec" id="estimateBtn" title="Đếm số token sẽ gửi lên AI (không tốn hạn mức tạo nội dung)">📊 Ước tính token</button>
       <button class="btn-sec" id="copyBtn" disabled>📋 Copy</button>
     </div>
     <details style="margin:8px 0"><summary>⚙️ Tùy chọn file Word</summary>
@@ -259,6 +279,12 @@ D. …
 let refDocs = [];   // {name,uri,mimeType,expiry,state}
 let examParts = []; // {name, part:{inline_data|file_data}, mimeType}
 let fullMarkdown = "";
+
+// ---------- Giao diện sáng/tối ----------
+function applyTheme(t){ document.documentElement.setAttribute("data-theme",t); $("#themeBtn").textContent=t==="dark"?"☀️":"🌙"; }
+(function(){ let t=null; try{ t=localStorage.getItem("theme"); }catch(_){}
+  if(!t) t=(window.matchMedia&&matchMedia("(prefers-color-scheme: dark)").matches)?"dark":"light"; applyTheme(t); })();
+$("#themeBtn").addEventListener("click",()=>{ const t=document.documentElement.getAttribute("data-theme")==="dark"?"light":"dark"; applyTheme(t); try{ localStorage.setItem("theme",t); }catch(_){} });
 
 // ---------- Init ----------
 async function init(){
@@ -590,16 +616,54 @@ function renderExam(){
   const ul=$("#examList"); ul.innerHTML="";
   examParts.forEach((e,i)=>{
     const li=document.createElement("li");
-    li.innerHTML=`<span class="name">${e.mimeType.startsWith("image")?"🖼️":"📄"} ${e.name}</span>
+    li.innerHTML=`<span class="name">${e.docxImages?"📝":e.mimeType.startsWith("image")?"🖼️":"📄"} ${e.name}</span>
       <span class="st ok">sẵn sàng</span><button class="x">✕</button>`;
     li.querySelector(".x").onclick=()=>{ examParts.splice(i,1); renderExam(); };
     ul.appendChild(li);
   });
 }
+function docxToText(html){
+  const doc=new DOMParser().parseFromString(html,"text/html"); let out="";
+  (function walk(n){
+    for(const c of n.childNodes){
+      if(c.nodeType===3){ out+=c.nodeValue; continue; }
+      if(c.nodeType!==1) continue;
+      const t=c.tagName;
+      if(t==="IMG"){ out+=" "+(c.getAttribute("alt")||"[HÌNH]")+" "; continue; }
+      if(t==="TR"){ [...c.children].forEach((td,i)=>{ if(i) out+=" | "; walk(td); }); out+="\n"; continue; }
+      walk(c); if(/^(P|H\d|LI|TABLE|BR)$/.test(t)) out+="\n";
+    }
+  })(doc.body);
+  return out.replace(/\n{3,}/g,"\n\n").trim();
+}
+async function readDocxExam(file){
+  await loadScript("https://cdn.jsdelivr.net/npm/mammoth@1.8.0/mammoth.browser.min.js");
+  const images=[];
+  const res=await mammoth.convertToHtml({ arrayBuffer:await file.arrayBuffer() },{
+    convertImage:mammoth.images.imgElement(async img=>{
+      const b64=await img.read("base64"); const ok=/^image\/(png|jpe?g|gif|webp)$/.test(img.contentType);
+      images.push({ type:img.contentType, b64, ok }); return { src:"", alt:`[HÌNH ${images.length}${ok?"":" – không đọc được định dạng"}]` };
+    })
+  });
+  const text=docxToText(res.value);
+  const imgs=images.map(im=>({ ...im, blob:im.ok?new Blob([Uint8Array.from(atob(im.b64),c=>c.charCodeAt(0))],{type:im.type}):null }));
+  const parts=[{ text:"(Nội dung đề thi trích từ file Word; các chỗ có hình được đánh dấu [HÌNH k], hình đính kèm bên dưới theo thứ tự)\n"+text }];
+  imgs.forEach((im,i)=>{ if(im.ok){ parts.push({ text:`[HÌNH ${i+1}]` }); parts.push({ inlineData:{ mimeType:im.type, data:im.b64 } }); } });
+  return { parts, docxImages:imgs };
+}
 const addExamFiles = async files=>{
   for(const file of files){
+    const isDocx=/\.docx$/i.test(file.name)||file.type==="application/vnd.openxmlformats-officedocument.wordprocessingml.document";
     const isImg=file.type.startsWith("image/"), isPdf=file.type==="application/pdf";
-    if(!isImg && !isPdf){ setStatus("⚠️ Chỉ nhận ảnh hoặc PDF.","err"); continue; }
+    if(!isImg && !isPdf && !isDocx){ setStatus("⚠️ Chỉ nhận ảnh, PDF hoặc Word (.docx).","err"); continue; }
+    if(isDocx){
+      const li=document.createElement("li");
+      li.innerHTML=`<span class="name">📝 ${file.name}</span><span class="st proc"><span class="spin"></span> đang đọc Word…</span>`;
+      $("#examList").appendChild(li);
+      try{ const d=await readDocxExam(file); examParts.push({ file, name:file.name, mimeType:"application/vnd.openxmlformats-officedocument.wordprocessingml.document", parts:d.parts, docxImages:d.docxImages }); renderExam(); }
+      catch(err){ li.querySelector(".st").className="st err"; li.querySelector(".st").textContent="Không đọc được: "+err.message; }
+      continue;
+    }
     const li=document.createElement("li");
     li.innerHTML=`<span class="name">${isImg?"🖼️":"📄"} ${file.name}</span><span class="st proc"><span class="spin"></span> đang xử lý…</span>`;
     $("#examList").appendChild(li);
@@ -662,6 +726,28 @@ async function openHistory(h){
   $("#output").scrollIntoView({ behavior:"smooth" });
 }
 
+// ---------- Ước tính token ----------
+const fmtN=n=>Number(n).toLocaleString("vi-VN");
+$("#estimateBtn").addEventListener("click", async()=>{
+  const key=getKey(); if(!key){ setStatus("⚠️ Chưa nhập API key.","err"); return; }
+  if(!examParts.length){ setStatus("⚠️ Chưa có đề thi để ước tính.","err"); return; }
+  setStatus('<span class="spin"></span> Đang đếm token…');
+  try{
+    try{ await ensureRefsFresh(); }catch(_){}
+    const bookParts=refDocs.filter(refFresh).map(d=>({ fileData:{ mimeType:d.mimeType, fileUri:d.uri } }));
+    const call=async parts=>{
+      const r=await fetch(`${API}/models/${getModel()}:countTokens?key=${key}`,{ method:"POST", headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({ generateContentRequest:{ model:"models/"+getModel(), systemInstruction:{ parts:[{ text:$("#sysPrompt").value+(figuresOn()?FIG_RULE:"") }] }, contents:[{ role:"user", parts }] } }) });
+      const j=await r.json(); if(!r.ok) throw new Error(j.error?.message||"Lỗi đếm token"); return j.totalTokens||0;
+    };
+    const exam=await call([...examPartsLabeled(),{ text:"giải đề" }]);
+    const total=bookParts.length?await call([...bookParts,...examPartsLabeled(),{ text:"giải đề" }]):exam;
+    const books=Math.max(0,total-exam);
+    setStatus(`📊 Gửi lên AI khoảng <b>${fmtN(total)}</b> token (đề + prompt ≈ ${fmtN(exam)}${bookParts.length?`, SGK ≈ ${fmtN(books)}`:", chưa nạp SGK"}). `+
+      (total>200000?"Nhiều — gói miễn phí dễ báo lỗi 429; hãy chỉ nạp SGK lớp liên quan hoặc dùng “Chỉ giải các câu”.":"Mức này thường ổn."),"ok");
+  }catch(err){ setStatus("❌ "+err.message,"err"); }
+});
+
 // ---------- Gọi Gemini (streaming) ----------
 async function generate(userText, appendMode){
   const key=getKey();
@@ -710,7 +796,7 @@ async function generate(userText, appendMode){
     });
     if(!r.ok){ const t=await r.text(); $("#output").innerHTML=`<b style="color:#c0392b">Lỗi thô từ Gemini (chụp gửi để sửa):</b><pre style="white-space:pre-wrap;font-size:12px;background:#fdf3f2;padding:10px;border-radius:8px;overflow:auto">${t.replace(/</g,"&lt;").slice(0,2000)}</pre>`; if(r.status===404||r.status===429||r.status===403) $("#output").insertAdjacentHTML("beforeend",`<p>💡 Mô hình <code>${getModel()}</code> có thể không dùng được với key này. Hãy kéo lên mục 1 và bấm <b>🤖 Tự chọn mô hình</b>.</p>`);
       throw new Error(safeErr(t)); }
-    const reader=r.body.getReader(); const dec=new TextDecoder(); let buf=""; let finishReason="";
+    const reader=r.body.getReader(); const dec=new TextDecoder(); let buf=""; let finishReason=""; let usage=null;
     while(true){
       const {done,value}=await reader.read(); if(done) break;
       buf+=dec.decode(value,{stream:true});
@@ -721,7 +807,9 @@ async function generate(userText, appendMode){
         try{
           const j=JSON.parse(data);
           const txt=j.candidates?.[0]?.content?.parts?.map(p=>p.text||"").join("")||"";
-          if(txt){ fullMarkdown+=txt; renderOutput(); }
+          if(txt){ fullMarkdown+=txt; renderOutput();
+            const nq=(fullMarkdown.match(/^##\s*Câu/mg)||[]).length; setStatus(`<span class="spin"></span> AI đang giải… đã viết ${nq} câu (${fmtN(fullMarkdown.length)} ký tự)`); }
+          if(j.usageMetadata) usage=j.usageMetadata;
           if(j.candidates?.[0]?.finishReason) finishReason=j.candidates[0].finishReason;
         }catch(_){}
       }
@@ -730,7 +818,7 @@ async function generate(userText, appendMode){
     if(finishReason==="MAX_TOKENS")
       setStatus("⚠️ Bài dài nên bị cắt giữa chừng. Hãy bấm <b>↻ Giải tiếp</b> để AI giải nốt các câu còn lại.","err");
     else
-      setStatus("✅ Xong! Bạn có thể tải Word hoặc bấm “Giải tiếp” nếu còn thiếu câu.","ok");
+      setStatus("✅ Xong! Bạn có thể tải Word hoặc bấm “Giải tiếp” nếu còn thiếu câu."+(usage?` <span class="hint">(đã dùng ${fmtN(usage.promptTokenCount||0)} token vào, ${fmtN(usage.candidatesTokenCount||0)} token ra)</span>`:""),"ok");
     $("#exportDocx").disabled=false; $("#copyBtn").disabled=false;
     try{ compareKey(); }catch(_){}
     saveHistory();
@@ -814,16 +902,22 @@ Các tệp đề được đánh nhãn "[TỆP ĐỀ SỐ n]". Khi một câu h�
 [[HINH nguon=n trang=p khung=ymin,xmin,ymax,xmax]]
 - n = số thứ tự tệp đề (bắt đầu từ 1); p = số trang trong tệp đó (ảnh thường = 1, PDF = trang chứa hình, bắt đầu từ 1).
 - khung = tọa độ hộp bao CHẶT SÁT riêng phần hình (không lấy chữ đề bài, không lấy phương án), chuẩn hóa thang 0–1000 theo chiều cao/chiều rộng của chính trang/ảnh đó, thứ tự ymin,xmin,ymax,xmax.
+- Với tệp Word (.docx): "trang" = số k của nhãn [HÌNH k] gắn với hình đó và khung luôn là 0,0,1000,1000 (lấy nguyên hình).
 - Chỉ dùng cho hình ảnh; KHÔNG dùng cho đoạn tư liệu chữ. Nếu có nhiều hình trong một câu thì mỗi hình một dòng. Đề không có hình thì không chèn gì.`;
 function figuresOn(){ return $("#optFigures") && $("#optFigures").checked; }
 function examPartsLabeled(){
   const out=[];
-  examParts.forEach((e,i)=>{ if(figuresOn()) out.push({ text:`[TỆP ĐỀ SỐ ${i+1}] ${e.name}` }); out.push(e.part); });
+  examParts.forEach((e,i)=>{ if(figuresOn()||e.parts) out.push({ text:`[TỆP ĐỀ SỐ ${i+1}] ${e.name}` }); (e.parts||[e.part]).forEach(p=>out.push(p)); });
   return out;
 }
 const figSrc={};      // nguon -> {kind:'img', bmp} | {kind:'pdf', pdf, pages:{}}
 async function getPageCanvas(n,p){
   const e=examParts[n-1]; if(!e||!e.file) throw new Error("Không tìm thấy tệp đề số "+n);
+  if(e.docxImages){
+    const im=e.docxImages[p-1]; if(!im||!im.blob) throw new Error("Không có hình số "+p+" trong file Word");
+    if(!im.canvas){ const bmp=await createImageBitmap(im.blob); const c=document.createElement("canvas"); c.width=bmp.width; c.height=bmp.height; c.getContext("2d").drawImage(bmp,0,0); im.canvas=c; }
+    return im.canvas;
+  }
   let src=figSrc[e.file.name+e.file.size];
   if(!src){
     if(e.mimeType==="application/pdf"){

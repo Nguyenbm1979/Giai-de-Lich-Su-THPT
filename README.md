@@ -11,6 +11,9 @@ dùng Google Gemini (AI Studio). Bám sát SGK Kết nối tri thức & Chương
 - **Đối chiếu đáp án chuẩn** (dán “1A 2B … 21 ĐSĐS”) để thấy câu AI giải lệch; **giải theo nhóm câu** (VD 1-20, 25).
 - **Lịch sử 20 lần giải gần nhất** lưu trong trình duyệt (kèm ảnh/PDF đề), mở lại để tải Word hoặc chỉnh hình.
 - Chỉnh khung hình: kéo để di chuyển, kéo cạnh/góc để đổi cỡ, kéo ngoài khung để vẽ mới.
+- Nhận đề dạng **ảnh, PDF hoặc Word (.docx)** (hình trong file Word được chèn lại nguyên vẹn).
+- **📊 Ước tính token** trước khi giải, hiện tiến độ số câu khi AI đang viết và số token đã dùng khi xong.
+- Giao diện **sáng/tối** (nút ở góc trên phải) và bố cục thân thiện điện thoại.
 - `Temperature = 0` và **không dùng Google Search** để khóa nguồn, tránh AI bịa kiến thức.
 
 ## 1. Lấy API key (miễn phí)
