@@ -60,6 +60,8 @@
   .keyrow{display:flex;gap:8px}.keyrow input{flex:1}
   footer{text-align:center;font-size:12px;color:var(--muted);padding:10px 0 30px}
   a{color:var(--brand2)}
+  #output img.fig{display:block;max-width:100%;max-height:420px;margin:8px auto;border:1px solid var(--line);border-radius:4px}
+  #output .figwait{color:var(--muted);font-size:13px;font-style:italic}
 </style>
 </head>
 <body>
@@ -119,6 +121,10 @@
     <div class="drop" id="examDrop">🖼️ Bấm hoặc kéo–thả <b>ảnh</b> hoặc <b>PDF đề thi</b> vào đây</div>
     <input type="file" id="examInput" accept="image/*,application/pdf" multiple hidden>
     <ul class="files" id="examList"></ul>
+    <label style="margin-top:12px;display:flex;gap:8px;align-items:flex-start;font-weight:600">
+      <input type="checkbox" id="optFigures" checked style="width:auto;margin-top:3px">
+      <span>🖼️ Tự cắt hình minh họa trong đề (bản đồ, tranh ảnh, biểu đồ, lược đồ…) và chèn vào lời giải/file Word</span>
+    </label>
     <label style="margin-top:12px">Yêu cầu gửi kèm</label>
     <input type="text" id="userMsg" value="Hãy giải chi tiết tất cả câu hỏi trong đề thi này theo đúng quy tắc trích dẫn nguồn SGK và định dạng đầu ra đã thiết lập.">
   </div>
@@ -142,6 +148,7 @@
 
 <script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/docx@8.5.0/build/index.umd.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
 <script>
 "use strict";
 const API = "https://generativelanguage.googleapis.com/v1beta";
@@ -437,11 +444,11 @@ bindDrop($("#examDrop"),$("#examInput"), async files=>{
     try{
       if(file.size <= 15*1024*1024){
         const b64=await fileToBase64(file);
-        examParts.push({ name:file.name, mimeType:file.type, part:{ inlineData:{ mimeType:file.type, data:b64 } } });
+        examParts.push({ file, name:file.name, mimeType:file.type, part:{ inlineData:{ mimeType:file.type, data:b64 } } });
       }else{
         const key=getKey(); if(!key) throw new Error("File lớn cần API key để tải lên.");
         const up=await uploadFileAPI(file);
-        examParts.push({ name:file.name, mimeType:file.type, part:{ fileData:{ mimeType:up.mimeType, fileUri:up.uri } } });
+        examParts.push({ file, name:file.name, mimeType:file.type, part:{ fileData:{ mimeType:up.mimeType, fileUri:up.uri } } });
       }
       renderExam();
     }catch(err){
@@ -460,11 +467,11 @@ async function generate(userText, appendMode){
   catch(err){ setStatus("❌ Nạp lại sách thất bại: "+err.message,"err"); return; }
 
   const bookParts = refDocs.filter(refFresh).map(d=>({ fileData:{ mimeType:d.mimeType, fileUri:d.uri } }));
-  const parts=[...bookParts, ...examParts.map(e=>e.part), { text:userText }];
+  const parts=[...bookParts, ...examPartsLabeled(), { text:userText }];
 
   const contents=[];
   if(appendMode && fullMarkdown){
-    contents.push({ role:"user", parts:[...bookParts, ...examParts.map(e=>e.part), {text:"Hãy giải chi tiết đề thi này."}] });
+    contents.push({ role:"user", parts:[...bookParts, ...examPartsLabeled(), {text:"Hãy giải chi tiết đề thi này."}] });
     contents.push({ role:"model", parts:[{text:fullMarkdown}] });
     contents.push({ role:"user", parts:[{text:"Tiếp tục giải các câu còn lại, không lặp lại các câu đã giải."}] });
   }else{
@@ -472,7 +479,7 @@ async function generate(userText, appendMode){
   }
 
   const body={
-    systemInstruction:{ parts:[{ text:$("#sysPrompt").value }] },
+    systemInstruction:{ parts:[{ text:$("#sysPrompt").value + (figuresOn()?FIG_RULE:"") }] },
     contents,
     generationConfig:{ temperature:0, maxOutputTokens:65536 }
   };
@@ -537,7 +544,71 @@ function safeErr(t){
     return msg;
   }catch(_){ return t; }
 }
-function renderOutput(){ $("#output").innerHTML=marked.parse(fullMarkdown); }
+// ---------- Hình minh họa: cắt khung từ ảnh/PDF đề ----------
+const FIG_RE=/\[\[HINH\s+nguon\s*=\s*(\d+)\s+trang\s*=\s*(\d+)\s+khung\s*=\s*([\d.\s,]+?)\s*\]\]/g;
+const FIG_LINE=/^\s*\[\[HINH\s+nguon\s*=\s*(\d+)\s+trang\s*=\s*(\d+)\s+khung\s*=\s*([\d.\s,]+?)\s*\]\]\s*$/;
+const FIG_RULE=`
+
+HÌNH MINH HỌA TRONG ĐỀ (BẮT BUỘC KHI ĐỀ CÓ HÌNH):
+Các tệp đề được đánh nhãn "[TỆP ĐỀ SỐ n]". Khi một câu hỏi có hình minh họa thật sự (bản đồ, lược đồ, tranh/ảnh lịch sử, biểu đồ, sơ đồ, bảng dạng ảnh, tem, tiền…), hãy chèn ĐÚNG MỘT dòng riêng, ngay sau dòng "## Câu …" và TRƯỚC các phương án/ý a,b,c,d, theo mẫu:
+[[HINH nguon=n trang=p khung=ymin,xmin,ymax,xmax]]
+- n = số thứ tự tệp đề (bắt đầu từ 1); p = số trang trong tệp đó (ảnh thường = 1, PDF = trang chứa hình, bắt đầu từ 1).
+- khung = tọa độ hộp bao CHẶT SÁT riêng phần hình (không lấy chữ đề bài, không lấy phương án), chuẩn hóa thang 0–1000 theo chiều cao/chiều rộng của chính trang/ảnh đó, thứ tự ymin,xmin,ymax,xmax.
+- Chỉ dùng cho hình ảnh; KHÔNG dùng cho đoạn tư liệu chữ. Nếu có nhiều hình trong một câu thì mỗi hình một dòng. Đề không có hình thì không chèn gì.`;
+function figuresOn(){ return $("#optFigures") && $("#optFigures").checked; }
+function examPartsLabeled(){
+  const out=[];
+  examParts.forEach((e,i)=>{ if(figuresOn()) out.push({ text:`[TỆP ĐỀ SỐ ${i+1}] ${e.name}` }); out.push(e.part); });
+  return out;
+}
+const figSrc={};      // nguon -> {kind:'img', bmp} | {kind:'pdf', pdf, pages:{}}
+async function getPageCanvas(n,p){
+  const e=examParts[n-1]; if(!e||!e.file) throw new Error("Không tìm thấy tệp đề số "+n);
+  let src=figSrc[e.file.name+e.file.size];
+  if(!src){
+    if(e.mimeType==="application/pdf"){
+      pdfjsLib.GlobalWorkerOptions.workerSrc="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js";
+      src={ kind:"pdf", pdf:await pdfjsLib.getDocument({ data:new Uint8Array(await e.file.arrayBuffer()) }).promise, pages:{} };
+    }else src={ kind:"img", bmp:await createImageBitmap(e.file) };
+    figSrc[e.file.name+e.file.size]=src;
+  }
+  if(src.kind==="img"){ const c=document.createElement("canvas"); c.width=src.bmp.width; c.height=src.bmp.height; c.getContext("2d").drawImage(src.bmp,0,0); return c; }
+  if(!src.pages[p]){
+    const page=await src.pdf.getPage(Math.min(Math.max(1,p),src.pdf.numPages));
+    const vp=page.getViewport({ scale:2.5 });
+    const c=document.createElement("canvas"); c.width=vp.width; c.height=vp.height;
+    await page.render({ canvasContext:c.getContext("2d"), viewport:vp }).promise;
+    src.pages[p]=c;
+  }
+  return src.pages[p];
+}
+const cropCache={};
+function getCrop(n,p,box){
+  const key=`${n}|${p}|${box}`;
+  if(!cropCache[key]) cropCache[key]=(async()=>{
+    const [y1,x1,y2,x2]=box.split(",").map(Number);
+    if([y1,x1,y2,x2].some(isNaN)||y2<=y1||x2<=x1) throw new Error("Khung không hợp lệ");
+    const src=await getPageCanvas(+n,+p), W=src.width, H=src.height, pad=0.004;
+    const sx=Math.max(0,x1/1000-pad)*W, sy=Math.max(0,y1/1000-pad)*H;
+    const sw=Math.min(1,x2/1000+pad)*W-sx, sh=Math.min(1,y2/1000+pad)*H-sy;
+    const c=document.createElement("canvas"); c.width=Math.round(sw); c.height=Math.round(sh);
+    c.getContext("2d").drawImage(src,sx,sy,sw,sh,0,0,c.width,c.height);
+    const blob=await new Promise(r=>c.toBlob(r,"image/png"));
+    return { url:URL.createObjectURL(blob), bytes:new Uint8Array(await blob.arrayBuffer()), w:c.width, h:c.height };
+  })();
+  return cropCache[key];
+}
+function renderOutput(){
+  let md=fullMarkdown.replace(/\[\[HINH[^\]]*$/,"");   // ẩn marker đang gõ dở
+  const figs=[];
+  md=md.replace(FIG_RE,(m,n,p,box)=>{ figs.push([n,p,box.replace(/\s+/g,"")]); return `\n\n<div class="figwait" data-f="${figs.length-1}">⏳ đang cắt hình…</div>\n\n`; });
+  $("#output").innerHTML=marked.parse(md);
+  $("#output").querySelectorAll("[data-f]").forEach(el=>{
+    const [n,p,box]=figs[+el.dataset.f];
+    getCrop(n,p,box).then(c=>{ const im=document.createElement("img"); im.className="fig"; im.src=c.url; el.replaceWith(im); })
+      .catch(err=>{ el.textContent="⚠️ Không cắt được hình: "+err.message; });
+  });
+}
 
 $("#run").addEventListener("click",()=>generate($("#userMsg").value.trim()||"Hãy giải chi tiết đề thi này.",false));
 $("#continue").addEventListener("click",()=>{ if(!fullMarkdown){ setStatus("Chưa có nội dung để giải tiếp.","err"); return; } generate("",true); });
@@ -548,8 +619,8 @@ $("#copyBtn").addEventListener("click",async()=>{
 });
 
 // ---------- Xuất Word (.docx) ----------
-$("#exportDocx").addEventListener("click",()=>{
-  const { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType } = docx;
+$("#exportDocx").addEventListener("click",async()=>{
+  const { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType, ImageRun } = docx;
   const children=[];
   children.push(new Paragraph({ alignment:AlignmentType.CENTER,
     children:[new TextRun({ text:"LỜI GIẢI ĐỀ THI MÔN LỊCH SỬ", bold:true, size:32, color:"8A1C1C" })] }));
@@ -561,6 +632,16 @@ $("#exportDocx").addEventListener("click",()=>{
   for(let raw of lines){
     const line=raw.replace(/\s+$/,"");
     if(line.trim()===""){ children.push(new Paragraph({ text:"" })); continue; }
+    const fm=line.match(FIG_LINE);
+    if(fm){
+      try{
+        const c=await getCrop(fm[1],fm[2],fm[3].replace(/\s+/g,""));
+        const k=Math.min(1, 460/c.w, 360/c.h);
+        children.push(new Paragraph({ alignment:AlignmentType.CENTER, spacing:{ before:120, after:120 },
+          children:[new ImageRun({ data:c.bytes, type:"png", transformation:{ width:Math.round(c.w*k), height:Math.round(c.h*k) } })] }));
+      }catch(err){ children.push(new Paragraph({ children:[new TextRun({ text:"[Hình minh họa – không cắt được: "+err.message+"]", italics:true, color:"999999" })] })); }
+      continue;
+    }
     if(/^---+$/.test(line.trim())){ children.push(new Paragraph({ border:{ bottom:{ color:"CCCCCC", space:1, style:"single", size:6 } } })); continue; }
     const h=line.match(/^(#{1,6})\s+(.*)$/);
     if(h){
