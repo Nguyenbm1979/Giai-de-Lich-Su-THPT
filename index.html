@@ -748,6 +748,28 @@ $("#estimateBtn").addEventListener("click", async()=>{
   }catch(err){ setStatus("❌ "+err.message,"err"); }
 });
 
+// ---------- Tự thử lại / chuyển model khi Google quá tải (500/502/503/504/429) ----------
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+async function fetchWithRetry(body,key){
+  const cur=getModel();
+  const opts=[...$("#model").options].map(o=>o.value).filter(m=>m&&m!==cur&&modelScore(m)>0);
+  const order=[cur,...(opts.length?opts:["gemini-2.5-pro","gemini-2.5-flash"].filter(m=>m!==cur)).slice(0,3)];
+  const TRANSIENT=[429,500,502,503,504]; let last=null, lastModel=cur;
+  for(let mi=0;mi<order.length;mi++){
+    const model=order[mi], tries=mi===0?3:1;
+    for(let a=0;a<tries;a++){
+      setStatus(`<span class="spin"></span> ${mi===0?"AI đang đọc đề và đối chiếu SGK…":`Đang thử model dự phòng <code>${model}</code>…`}${a?` (thử lại lần ${a+1}/${tries})`:""}`);
+      let r;
+      try{ r=await fetch(`${API}/models/${model}:streamGenerateContent?alt=sse&key=${key}`,{ method:"POST", headers:{ "Content-Type":"application/json" }, body:JSON.stringify(body) }); }
+      catch(err){ if(a<tries-1){ await sleep(3000); continue; } throw err; }
+      if(r.ok || !TRANSIENT.includes(r.status)) return { r, model };
+      last=r; lastModel=model;
+      if(a<tries-1){ const w=4+a*6; for(let k=w;k>0;k--){ setStatus(`⏳ Google báo <b>${model}</b> đang quá tải (${r.status}). Tự thử lại sau ${k}s…`); await sleep(1000); } }
+    }
+  }
+  return { r:last, model:lastModel };
+}
+
 // ---------- Gọi Gemini (streaming) ----------
 async function generate(userText, appendMode){
   const key=getKey();
@@ -790,11 +812,12 @@ async function generate(userText, appendMode){
   setStatus('<span class="spin"></span> AI đang đọc đề và đối chiếu SGK… (đề dài có thể mất 1–3 phút)');
   if(!appendMode){ fullMarkdown=""; histId=null; $("#output").innerHTML=""; }
 
+  let fbNote="";
   try{
-    const r=await fetch(`${API}/models/${getModel()}:streamGenerateContent?alt=sse&key=${key}`,{
-      method:"POST", headers:{ "Content-Type":"application/json" }, body:JSON.stringify(body)
-    });
-    if(!r.ok){ const t=await r.text(); $("#output").innerHTML=`<b style="color:#c0392b">Lỗi thô từ Gemini (chụp gửi để sửa):</b><pre style="white-space:pre-wrap;font-size:12px;background:#fdf3f2;padding:10px;border-radius:8px;overflow:auto">${t.replace(/</g,"&lt;").slice(0,2000)}</pre>`; if(r.status===404||r.status===429||r.status===403) $("#output").insertAdjacentHTML("beforeend",`<p>💡 Mô hình <code>${getModel()}</code> có thể không dùng được với key này. Hãy kéo lên mục 1 và bấm <b>🤖 Tự chọn mô hình</b>.</p>`);
+    const {r,model:usedModel}=await fetchWithRetry(body,key);
+    if(r.ok && usedModel!==getModel()) fbNote=` <span class="hint">(model <code>${getModel()}</code> quá tải nên đã tự chuyển sang <code>${usedModel}</code> cho lần này)</span>`;
+    if(!r.ok){ const t=await r.text(); $("#output").innerHTML=`<b style="color:#c0392b">Lỗi thô từ Gemini (chụp gửi để sửa):</b><pre style="white-space:pre-wrap;font-size:12px;background:#fdf3f2;padding:10px;border-radius:8px;overflow:auto">${t.replace(/</g,"&lt;").slice(0,2000)}</pre>`; if([500,502,503,504].includes(r.status)) $("#output").insertAdjacentHTML("afterbegin",`<p>⏳ Máy chủ Google đang quá tải (không phải lỗi của trang). Trang đã thử lại và thử cả model khác nhưng chưa được. Hãy đợi 1–2 phút rồi bấm <b>▶ Giải đề</b> lại, hoặc chọn model khác ở mục 1.</p>`);
+    if(r.status===404||r.status===429||r.status===403) $("#output").insertAdjacentHTML("beforeend",`<p>💡 Mô hình <code>${getModel()}</code> có thể không dùng được với key này. Hãy kéo lên mục 1 và bấm <b>🤖 Tự chọn mô hình</b>.</p>`);
       throw new Error(safeErr(t)); }
     const reader=r.body.getReader(); const dec=new TextDecoder(); let buf=""; let finishReason=""; let usage=null;
     while(true){
@@ -818,7 +841,7 @@ async function generate(userText, appendMode){
     if(finishReason==="MAX_TOKENS")
       setStatus("⚠️ Bài dài nên bị cắt giữa chừng. Hãy bấm <b>↻ Giải tiếp</b> để AI giải nốt các câu còn lại.","err");
     else
-      setStatus("✅ Xong! Bạn có thể tải Word hoặc bấm “Giải tiếp” nếu còn thiếu câu."+(usage?` <span class="hint">(đã dùng ${fmtN(usage.promptTokenCount||0)} token vào, ${fmtN(usage.candidatesTokenCount||0)} token ra)</span>`:""),"ok");
+      setStatus("✅ Xong! Bạn có thể tải Word hoặc bấm “Giải tiếp” nếu còn thiếu câu."+fbNote+(usage?` <span class="hint">(đã dùng ${fmtN(usage.promptTokenCount||0)} token vào, ${fmtN(usage.candidatesTokenCount||0)} token ra)</span>`:""),"ok");
     $("#exportDocx").disabled=false; $("#copyBtn").disabled=false;
     try{ compareKey(); }catch(_){}
     saveHistory();
