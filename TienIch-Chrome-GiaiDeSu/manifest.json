@@ -1,0 +1,21 @@
+{
+  "manifest_version": 3,
+  "name": "Giải đề Sử – cầu nối Gemini",
+  "version": "1.0",
+  "description": "Nhận đề + câu lệnh từ trang Giải đề Lịch sử THPT, gửi vào tab Gemini (gói Pro của bạn) và trả lời giải về trang. Chỉ hoạt động trên gemini.google.com và trang Giải đề.",
+  "permissions": [],
+  "host_permissions": ["https://gemini.google.com/*"],
+  "background": {"service_worker": "nen.js"},
+  "content_scripts": [
+    {
+      "matches": ["https://nguyenbm1979.github.io/Giai-de-Lich-Su-THPT/*", "https://nguyenbm1979.github.io/giai-de-lich-su-thpt/*"],
+      "js": ["cau.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": ["https://gemini.google.com/*"],
+      "js": ["trang.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}

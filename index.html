@@ -204,6 +204,19 @@
         <li>Đính kèm ảnh/PDF đề (và SGK nếu muốn) rồi gửi.</li>
         <li>Sao chép toàn bộ câu trả lời, dán vào ô dưới và bấm <b>Dùng kết quả này</b> — trang sẽ hiển thị, đối chiếu đáp án và xuất Word như bình thường.</li>
       </ol>
+      <div id="extBox" style="border:1px solid var(--line);border-radius:10px;padding:10px;margin:8px 0">
+        <b>🚀 Tự động gửi sang Gemini Pro</b> <span id="extState" class="hint">đang tìm tiện ích Chrome…</span>
+        <div id="extForm" hidden>
+          <div class="row" style="margin-top:6px">
+            <div><label>Model trên Gemini</label><select id="gwModel"><option value="pro" selected>Pro</option><option value="flash">Flash</option><option value="">Giữ nguyên model đang chọn</option></select></div>
+            <div><label>Tài khoản Google (số /u/N, bỏ trống = đang dùng)</label><input type="text" id="gwAcc" placeholder="VD: 0, 1, 2…"></div>
+            <div><label>Gắn thẻ @ (Gem/kỹ năng chứa SGK, tùy chọn)</label><input type="text" id="gwTag" placeholder="tên thẻ, bỏ trống nếu không có"></div>
+          </div>
+          <div class="toolbar" style="margin-top:8px"><button class="btn-primary" id="gwSend" type="button">🚀 Gửi sang Gemini Pro</button><button class="btn-sec" id="gwCancel" type="button" hidden>⏹ Hủy</button></div>
+          <p class="hint">Trang sẽ gửi ảnh/PDF/Word đề ở mục 3 và prompt, chờ Gemini trả lời rồi tự điền kết quả. Giữ Chrome mở và đừng đóng tab Gemini.</p>
+        </div>
+        <p class="hint" id="extMiss" hidden>Chưa thấy tiện ích. Cài theo hướng dẫn trong thư mục <code>TienIch-Chrome-GiaiDeSu</code> của repo (Chrome → chrome://extensions → Chế độ nhà phát triển → Tải tiện ích đã giải nén), rồi tải lại trang. Hoặc dùng cách thủ công bên dưới.</p>
+      </div>
       <button class="btn-sec" id="copyPrompt" type="button">📋 Sao chép prompt</button>
       <textarea id="proPaste" style="min-height:140px;margin:8px 0" placeholder="Dán câu trả lời của Gemini vào đây…"></textarea>
       <button class="btn-primary" id="useProResult" type="button">✔ Dùng kết quả này</button>
@@ -740,24 +753,75 @@ async function openHistory(h){
 
 // ---------- Chế độ dán kết quả từ Gemini Pro (không API) ----------
 $("#copyPrompt").addEventListener("click", async()=>{
-  const rg=$("#qRange").value.trim();
-  const txt=$("#sysPrompt").value+"\n\n---\nYÊU CẦU: "+($("#userMsg").value.trim()||"Hãy giải chi tiết đề thi này.")+(rg?` CHỈ giải các câu sau (giữ nguyên số câu của đề): ${rg}.`:"")+"\nĐề thi là file/ảnh đính kèm trong tin nhắn này.";
+  const txt=buildPromptText();
   try{ await navigator.clipboard.writeText(txt); setStatus("📋 Đã sao chép prompt. Dán vào Gemini rồi đính kèm đề.","ok"); }
   catch(_){ $("#proPaste").value=txt; setStatus("⚠️ Không tự sao chép được; prompt đã đặt vào ô bên dưới, hãy chọn hết và copy.","err"); }
 });
-$("#useProResult").addEventListener("click",()=>{
-  let t=$("#proPaste").value.replace(/\r/g,"").trim();
-  if(!t){ setStatus("⚠️ Hãy dán câu trả lời của Gemini vào ô trước.","err"); return; }
+function applyResultText(raw, append, nguon){
+  let t=String(raw||"").replace(/\r/g,"").trim();
+  if(!t){ setStatus("⚠️ Không có nội dung để dùng.","err"); return false; }
   t=t.replace(/^```(?:markdown|md)?\s*\n/,"").replace(/\n```\s*$/,"");             // bỏ rào code nếu có
-  if($("#proAppend").checked && fullMarkdown) fullMarkdown=fullMarkdown.replace(/\s+$/,"")+"\n\n"+t;
+  if(append && fullMarkdown) fullMarkdown=fullMarkdown.replace(/\s+$/,"")+"\n\n"+t;
   else { fullMarkdown=t; histId=null; }
-  renderOutput(); $("#proPaste").value="";
+  renderOutput();
   $("#exportDocx").disabled=false; $("#copyBtn").disabled=false;
   const n=(fullMarkdown.match(/^##\s*Câu/mg)||[]).length;
-  setStatus(n?`✅ Đã nhận ${n} câu từ Gemini. Có thể tải Word hoặc đối chiếu đáp án.`:"⚠️ Không thấy tiêu đề “## Câu …” — kiểm tra lại prompt hoặc nội dung đã dán (vẫn xuất Word được).",n?"ok":"err");
+  setStatus(n?`✅ Đã nhận ${n} câu từ ${nguon||"Gemini"}. Có thể tải Word hoặc đối chiếu đáp án.`:"⚠️ Không thấy tiêu đề “## Câu …” — kiểm tra lại prompt hoặc nội dung (vẫn xuất Word được).",n?"ok":"err");
   try{ compareKey(); }catch(_){}
   saveHistory();
+  return true;
+}
+$("#useProResult").addEventListener("click",()=>{
+  if(applyResultText($("#proPaste").value, $("#proAppend").checked)) $("#proPaste").value="";
 });
+
+// ---------- Cầu nối tiện ích Chrome → Gemini Pro ----------
+let extReady=false, gwJob=null;
+const toExt=o=>window.postMessage({ src:"gds-page", ...o },"*");
+function gwBusy(b){ $("#gwSend").disabled=b; $("#gwCancel").hidden=!b; }
+window.addEventListener("message",ev=>{
+  if(ev.source!==window||!ev.data||ev.data.src!=="gds-ext") return;
+  const d=ev.data;
+  if(d.loai==="pong"){ extReady=true; $("#extState").textContent="✅ đã nhận tiện ích (v"+d.ver+")"; $("#extForm").hidden=false; $("#extMiss").hidden=true; }
+  else if(d.loai==="da-giao"){ if(!d.ok){ gwBusy(false); gwJob=null; setStatus("❌ "+(d.loi||"Không giao được việc cho tiện ích"),"err"); } else setStatus('<span class="spin"></span> Đã giao cho tiện ích, đang mở Gemini…'); }
+  else if(d.loai==="tien-do"&&gwJob){ setStatus('<span class="spin"></span> '+String(d.s||"").replace(/</g,"&lt;")); }
+  else if(d.loai==="ket-qua"&&gwJob){
+    const du=d.du||{}; gwBusy(false); gwJob=null;
+    if(du.khong_co_tai_khoan) return setStatus("❌ Chrome chưa đăng nhập tài khoản Google thứ "+du.tai_khoan+". Kiểm tra số /u/N.","err");
+    if(du.khong_thay_ky_nang) return setStatus("❌ Không tìm thấy thẻ @"+(du.ky_nang||"")+" trong Gemini. Kiểm tra tên hoặc để trống.","err");
+    if(du.loi) return setStatus("❌ "+du.loi+(du.than_trang&&/giới hạn|limit|đạt đến|quota/i.test(du.than_trang)?" — có thể đã hết lượt dùng Pro hôm nay.":""),"err");
+    const text=(du.md&&du.md.trim())?du.md:du.chu;
+    if(!text||!text.trim()) return setStatus("⚠️ Gemini không trả lời (có thể hết lượt Pro, bị từ chối, hoặc giao diện đã đổi). Thử dán thủ công hoặc đổi model.","err");
+    applyResultText(text,false,"Gemini Pro"+(du.mo_hinh?` (${du.mo_hinh.trim().slice(0,40)})`:""));
+  }
+});
+toExt({loai:"ping"}); setTimeout(()=>toExt({loai:"ping"}),1200);
+setTimeout(()=>{ if(!extReady){ $("#extState").textContent="chưa cài"; $("#extMiss").hidden=false; } },2500);
+function buildPromptText(){
+  const rg=$("#qRange").value.trim();
+  return $("#sysPrompt").value+"\n\n---\nYÊU CẦU: "+($("#userMsg").value.trim()||"Hãy giải chi tiết đề thi này.")+(rg?` CHỈ giải các câu sau (giữ nguyên số câu của đề): ${rg}.`:"")+"\nĐề thi là các tệp/ảnh đính kèm trong tin nhắn này.";
+}
+$("#gwSend").addEventListener("click",async()=>{
+  if(!examParts.length){ setStatus("⚠️ Chưa có đề thi. Hãy tải ảnh/PDF/Word đề ở mục 3.","err"); return; }
+  setStatus('<span class="spin"></span> Đang đóng gói đề…');
+  try{
+    const tep=[]; let them="";
+    for(const e of examParts){
+      if(e.docxImages){
+        them+="\n\n"+e.parts[0].text;
+        for(const [i,im] of e.docxImages.entries()) if(im.ok) tep.push({ ten:`${e.name}-hinh${i+1}.${(im.type.split("/")[1]||"png").replace("jpeg","jpg")}`, type:im.type, b64:im.b64 });
+      }else if(e.file) tep.push({ ten:e.name, type:e.mimeType, b64:await fileToBase64(e.file) });
+    }
+    const tag=$("#gwTag").value.trim().replace(/^@/,"");
+    let cau=buildPromptText()+them;
+    if(!tag) cau+="\n\nGHI CHÚ: tin nhắn này không đính kèm SGK. Hãy dựa vào kiến thức SGK Lịch sử (Kết nối tri thức) và chương trình GDPT 2018 mà bạn nắm chắc; ghi nguồn là tên bài/chủ đề tương ứng và nói rõ nếu không chắc chắn.";
+    const acc=$("#gwAcc").value.trim();
+    gwJob={ id:"j"+Date.now() };
+    gwBusy(true);
+    toExt({ loai:"giao", job:{ id:gwJob.id, model:$("#gwModel").value, cau_lenh:cau, tep, ky_nang:tag||"", tai_khoan:acc===""?null:Number(acc) } });
+  }catch(err){ gwBusy(false); gwJob=null; setStatus("❌ "+err.message,"err"); }
+});
+$("#gwCancel").addEventListener("click",()=>{ toExt({loai:"huy"}); gwBusy(false); gwJob=null; setStatus("⏹ Đã hủy việc gửi sang Gemini.",""); });
 
 // ---------- Ước tính token ----------
 const fmtN=n=>Number(n).toLocaleString("vi-VN");

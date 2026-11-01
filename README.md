@@ -14,6 +14,7 @@ dùng Google Gemini (AI Studio). Bám sát SGK Kết nối tri thức & Chương
 - Nhận đề dạng **ảnh, PDF hoặc Word (.docx)** (hình trong file Word được chèn lại nguyên vẹn).
 - **📊 Ước tính token** trước khi giải, hiện tiến độ số câu khi AI đang viết và số token đã dùng khi xong.
 - Giao diện **sáng/tối** (nút ở góc trên phải) và bố cục thân thiện điện thoại.
+- **Dùng gói Gemini Pro (không cần API):** cài tiện ích Chrome trong thư mục `TienIch-Chrome-GiaiDeSu` (xem `HUONG-DAN.md` trong đó), rồi bấm **🚀 Gửi sang Gemini Pro** ở mục 4: trang tự gửi đề + prompt vào tab Gemini và nhận lời giải về. Không có tiện ích thì dùng cách sao chép/dán thủ công.
 - `Temperature = 0` và **không dùng Google Search** để khóa nguồn, tránh AI bịa kiến thức.
 
 ## 1. Lấy API key (miễn phí)
