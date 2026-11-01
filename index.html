@@ -198,6 +198,18 @@
       <label style="display:flex;gap:8px;align-items:center;margin-top:6px"><input type="checkbox" id="docKeyTable" checked style="width:auto"> Thêm bảng đáp án tóm tắt ở đầu file</label>
       <label style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="docNoSrc" style="width:auto"> Ẩn dòng “Nguồn tham chiếu” trong file Word</label>
     </details>
+    <details id="proMode" style="margin:8px 0"><summary>💎 Dùng gói Gemini Pro của bạn (không cần API key)</summary>
+      <ol class="hint" style="margin:8px 0 8px 18px;padding:0">
+        <li>Bấm <b>📋 Sao chép prompt</b>, mở <a href="https://gemini.google.com/app" target="_blank" rel="noopener">gemini.google.com</a>, chọn bản Pro/Thinking, dán prompt.</li>
+        <li>Đính kèm ảnh/PDF đề (và SGK nếu muốn) rồi gửi.</li>
+        <li>Sao chép toàn bộ câu trả lời, dán vào ô dưới và bấm <b>Dùng kết quả này</b> — trang sẽ hiển thị, đối chiếu đáp án và xuất Word như bình thường.</li>
+      </ol>
+      <button class="btn-sec" id="copyPrompt" type="button">📋 Sao chép prompt</button>
+      <textarea id="proPaste" style="min-height:140px;margin:8px 0" placeholder="Dán câu trả lời của Gemini vào đây…"></textarea>
+      <button class="btn-primary" id="useProResult" type="button">✔ Dùng kết quả này</button>
+      <p class="hint">Lưu ý: cách này không có tọa độ để tự cắt hình minh họa. Nếu Gemini trả lời làm nhiều đợt, tích “Nối thêm” bên dưới khi dán đợt sau.</p>
+      <label style="display:flex;gap:8px;align-items:center;margin-top:4px"><input type="checkbox" id="proAppend" style="width:auto"> Nối thêm vào kết quả cũ (thay vì thay thế)</label>
+    </details>
     <div id="status"></div>
     <div id="keyReport"></div>
     <div id="output"></div>
@@ -725,6 +737,27 @@ async function openHistory(h){
   try{ compareKey(); }catch(_){}
   $("#output").scrollIntoView({ behavior:"smooth" });
 }
+
+// ---------- Chế độ dán kết quả từ Gemini Pro (không API) ----------
+$("#copyPrompt").addEventListener("click", async()=>{
+  const rg=$("#qRange").value.trim();
+  const txt=$("#sysPrompt").value+"\n\n---\nYÊU CẦU: "+($("#userMsg").value.trim()||"Hãy giải chi tiết đề thi này.")+(rg?` CHỈ giải các câu sau (giữ nguyên số câu của đề): ${rg}.`:"")+"\nĐề thi là file/ảnh đính kèm trong tin nhắn này.";
+  try{ await navigator.clipboard.writeText(txt); setStatus("📋 Đã sao chép prompt. Dán vào Gemini rồi đính kèm đề.","ok"); }
+  catch(_){ $("#proPaste").value=txt; setStatus("⚠️ Không tự sao chép được; prompt đã đặt vào ô bên dưới, hãy chọn hết và copy.","err"); }
+});
+$("#useProResult").addEventListener("click",()=>{
+  let t=$("#proPaste").value.replace(/\r/g,"").trim();
+  if(!t){ setStatus("⚠️ Hãy dán câu trả lời của Gemini vào ô trước.","err"); return; }
+  t=t.replace(/^```(?:markdown|md)?\s*\n/,"").replace(/\n```\s*$/,"");             // bỏ rào code nếu có
+  if($("#proAppend").checked && fullMarkdown) fullMarkdown=fullMarkdown.replace(/\s+$/,"")+"\n\n"+t;
+  else { fullMarkdown=t; histId=null; }
+  renderOutput(); $("#proPaste").value="";
+  $("#exportDocx").disabled=false; $("#copyBtn").disabled=false;
+  const n=(fullMarkdown.match(/^##\s*Câu/mg)||[]).length;
+  setStatus(n?`✅ Đã nhận ${n} câu từ Gemini. Có thể tải Word hoặc đối chiếu đáp án.`:"⚠️ Không thấy tiêu đề “## Câu …” — kiểm tra lại prompt hoặc nội dung đã dán (vẫn xuất Word được).",n?"ok":"err");
+  try{ compareKey(); }catch(_){}
+  saveHistory();
+});
 
 // ---------- Ước tính token ----------
 const fmtN=n=>Number(n).toLocaleString("vi-VN");
