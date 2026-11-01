@@ -5,6 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Trợ lý giải đề Lịch sử THPT</title>
 <style>
+  #keyReport table{border-collapse:collapse;font-size:13px;margin:8px 0}#keyReport td,#keyReport th{border:1px solid var(--line);padding:3px 8px;text-align:center}#keyReport .bad{background:#fdecea;color:#c0392b;font-weight:700}#keyReport .good{color:#1a7f4b}
+  #output table{border-collapse:collapse;margin:8px 0}#output th,#output td{border:1px solid #bbb;padding:4px 8px}
   :root{
     --bg:#f4f6fb; --card:#ffffff; --ink:#1f2733; --muted:#6b7686;
     --line:#e3e8f0; --brand:#8a1c1c; --brand2:#b8342f; --accent:#0b6b5f;
@@ -145,6 +147,13 @@
       <input type="checkbox" id="optFigures" checked style="width:auto;margin-top:3px">
       <span>🖼️ Tự cắt hình minh họa trong đề (bản đồ, tranh ảnh, biểu đồ, lược đồ…) và chèn vào lời giải/file Word</span>
     </label>
+    <div class="row" style="margin-top:10px">
+      <div><label>Chỉ giải các câu (tùy chọn)</label><input type="text" id="qRange" placeholder="VD: 1-20, 25, 31-34 — để trống = giải cả đề"></div>
+    </div>
+    <details style="margin-top:8px"><summary>✅ Đáp án chuẩn để đối chiếu (tùy chọn)</summary>
+      <textarea id="keyText" style="min-height:70px;margin:6px 0" placeholder="Trắc nghiệm: 1A 2B 3C 4D …   Đúng/sai: 21 ĐSĐS 22 SĐĐS …"></textarea>
+      <p class="hint">Dán đáp án chuẩn của đề. Sau khi giải, trang đánh dấu câu nào AI cho đáp án khác để bạn soát lại. (Chữ Đ = Đúng, S = Sai cho câu đúng/sai.)</p>
+    </details>
     <label style="margin-top:12px">Yêu cầu gửi kèm</label>
     <input type="text" id="userMsg" value="Hãy giải chi tiết tất cả câu hỏi trong đề thi này theo đúng quy tắc trích dẫn nguồn SGK và định dạng đầu ra đã thiết lập.">
   </div>
@@ -159,7 +168,18 @@
       <button class="btn-accent" id="exportDocx" disabled>⬇ Tải Word (.docx)</button>
       <button class="btn-sec" id="copyBtn" disabled>📋 Copy</button>
     </div>
+    <details style="margin:8px 0"><summary>⚙️ Tùy chọn file Word</summary>
+      <div class="row" style="margin-top:6px">
+        <div><label>Tên trường / tổ</label><input type="text" id="docSchool" placeholder="VD: Trường THPT …"></div>
+        <div><label>Tên đề</label><input type="text" id="docTitle" placeholder="VD: Đề kiểm tra giữa kì I – Lịch sử 12"></div>
+        <div><label>Năm học</label><input type="text" id="docYear" placeholder="2025–2026"></div>
+        <div style="flex:0 0 110px;min-width:0"><label>Cỡ chữ</label><select id="docFont"><option value="24">12 pt</option><option value="26" selected>13 pt</option><option value="28">14 pt</option></select></div>
+      </div>
+      <label style="display:flex;gap:8px;align-items:center;margin-top:6px"><input type="checkbox" id="docKeyTable" checked style="width:auto"> Thêm bảng đáp án tóm tắt ở đầu file</label>
+      <label style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="docNoSrc" style="width:auto"> Ẩn dòng “Nguồn tham chiếu” trong file Word</label>
+    </details>
     <div id="status"></div>
+    <div id="keyReport"></div>
     <div id="output"></div>
   </div>
 
@@ -661,6 +681,7 @@ async function generate(userText, appendMode){
     else
       setStatus("✅ Xong! Bạn có thể tải Word hoặc bấm “Giải tiếp” nếu còn thiếu câu.","ok");
     $("#exportDocx").disabled=false; $("#copyBtn").disabled=false;
+    try{ compareKey(); }catch(_){}
   }catch(err){
     setStatus("❌ "+err.message,"err");
   }finally{
@@ -783,7 +804,10 @@ function renderOutput(){
   });
 }
 
-$("#run").addEventListener("click",()=>generate($("#userMsg").value.trim()||"Hãy giải chi tiết đề thi này.",false));
+$("#run").addEventListener("click",()=>{
+  const rg=$("#qRange").value.trim();
+  generate(($("#userMsg").value.trim()||"Hãy giải chi tiết đề thi này.")+(rg?` CHỈ giải các câu sau, bỏ qua các câu còn lại (nhưng vẫn giữ nguyên số câu của đề): ${rg}.`:""),false);
+});
 $("#continue").addEventListener("click",()=>{ if(!fullMarkdown){ setStatus("Chưa có nội dung để giải tiếp.","err"); return; } generate("",true); });
 
 $("#copyBtn").addEventListener("click",async()=>{
@@ -791,19 +815,81 @@ $("#copyBtn").addEventListener("click",async()=>{
   setStatus("📋 Đã copy nội dung Markdown. Có thể dán thẳng vào Word.","ok");
 });
 
+// ---------- Trích đáp án & đối chiếu ----------
+function extractAnswers(md){
+  const out={}; const parts=md.split(/^##\s*Câu\s*(\d+)/m);   // [pre, n, body, n, body…]
+  for(let i=1;i<parts.length;i+=2){
+    const n=+parts[i], body=parts[i+1]||"";
+    const mc=body.match(/Đáp án chọn:\s*\**\s*\[?\s*([A-D])\b/i);
+    if(mc){ out[n]={ type:"mc", ans:mc[1].toUpperCase() }; continue; }
+    const tf=[...body.matchAll(/\*\*Ý\s*([a-d])\)\*\*\s*\[?\s*(ĐÚNG|SAI)/gi)].map(m=>/đ/i.test(m[2][0])?"Đ":"S");
+    if(tf.length) out[n]={ type:"tf", ans:tf.join("") };
+  }
+  return out;
+}
+function parseKey(txt){
+  const key={}; let t=" "+txt.replace(/\n/g," ")+" ";
+  t=t.replace(/(\d+)\s*[.:)\-–]?\s*([ĐSđs](?:[\s,;\/\-]*[ĐSđs]){3})(?![A-Za-zÀ-ỹ])/g,(m,n,a)=>{ key[+n]=a.replace(/[^ĐSđs]/g,"").toUpperCase(); return " "; });
+  t.replace(/(\d+)\s*[.:)\-–]?\s*([A-Da-d])(?![A-Za-zÀ-ỹ])/g,(m,n,a)=>{ key[+n]=a.toUpperCase(); return m; });
+  return key;
+}
+function compareKey(){
+  const box=$("#keyReport"); const txt=$("#keyText").value.trim(); box.innerHTML="";
+  if(!txt) return;
+  const key=parseKey(txt), ans=extractAnswers(fullMarkdown);
+  const nums=Object.keys(key).map(Number).sort((a,b)=>a-b);
+  if(!nums.length){ box.innerHTML='<p class="hint">⚠️ Không đọc được đáp án chuẩn. Dạng đúng: “1A 2B 3C” hoặc “21 ĐSĐS”.</p>'; return; }
+  let ok=0,bad=0,miss=0; const rows=nums.map(n=>{
+    const a=ans[n]?ans[n].ans:null, k=key[n];
+    let cls="good", mark="✅";
+    if(a===null){ miss++; cls=""; mark="—"; } else if(a===k) ok++; else { bad++; cls="bad"; mark="❌"; }
+    return `<tr class="${cls}"><td>Câu ${n}</td><td>${k}</td><td>${a??"chưa có"}</td><td>${mark}</td></tr>`;
+  }).join("");
+  box.innerHTML=`<p><b>🔍 Đối chiếu đáp án:</b> khớp <b style="color:#1a7f4b">${ok}</b>, lệch <b style="color:#c0392b">${bad}</b>, chưa giải/không có <b>${miss}</b>.</p>
+    <details ${bad?"open":""}><summary>Xem chi tiết</summary><table><tr><th>Câu</th><th>Chuẩn</th><th>AI</th><th></th></tr>${rows}</table></details>
+    ${bad?'<p class="hint">Câu bị lệch: hãy soát lại lời giải của câu đó (có thể AI sai hoặc đáp án chuẩn nhập nhầm).</p>':""}`;
+}
+$("#keyText").addEventListener("change",compareKey);
+
 // ---------- Xuất Word (.docx) ----------
 $("#exportDocx").addEventListener("click",async()=>{
-  const { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType, ImageRun } = docx;
+  const { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType, ImageRun, Table, TableRow, TableCell, WidthType } = docx;
   const children=[];
+  const mkTable=(rows,header)=>new Table({ width:{ size:100, type:WidthType.PERCENTAGE },
+    rows:rows.map((r,ri)=>new TableRow({ tableHeader:header&&ri===0, children:r.map(c=>new TableCell({
+      children:String(c).split(/<br\s*\/?>/i).map(t=>new Paragraph({ children:inlineRuns(t.trim(), header&&ri===0?{}:{}) }))
+    })) })) });
+  const school=$("#docSchool").value.trim(), dtitle=$("#docTitle").value.trim(), dyear=$("#docYear").value.trim();
+  if(school) children.push(new Paragraph({ alignment:AlignmentType.CENTER, children:[new TextRun({ text:school.toUpperCase(), bold:true })] }));
   children.push(new Paragraph({ alignment:AlignmentType.CENTER,
     children:[new TextRun({ text:"LỜI GIẢI ĐỀ THI MÔN LỊCH SỬ", bold:true, size:32, color:"8A1C1C" })] }));
+  if(dtitle||dyear) children.push(new Paragraph({ alignment:AlignmentType.CENTER, children:[new TextRun({ text:[dtitle,dyear&&("Năm học "+dyear)].filter(Boolean).join(" – "), bold:true })] }));
   children.push(new Paragraph({ alignment:AlignmentType.CENTER,
     children:[new TextRun({ text:"Biên soạn theo SGK Kết nối tri thức & Chương trình GDPT 2018", italics:true, size:20, color:"666666" })] }));
   children.push(new Paragraph({ text:"" }));
 
+  if($("#docKeyTable").checked){
+    const ans=extractAnswers(fullMarkdown), ns=Object.keys(ans).map(Number).sort((a,b)=>a-b);
+    if(ns.length){
+      children.push(new Paragraph({ children:[new TextRun({ text:"BẢNG ĐÁP ÁN", bold:true, color:"8A1C1C" })] }));
+      const per=5, rows=[]; const hdr=[]; for(let i=0;i<per;i++) hdr.push("Câu","Đáp án"); rows.push(hdr);
+      for(let i=0;i<ns.length;i+=per){ const r=[]; for(let j=0;j<per;j++){ const n=ns[i+j]; r.push(n!==undefined?String(n):"", n!==undefined?ans[n].ans:""); } rows.push(r); }
+      children.push(mkTable(rows,true)); children.push(new Paragraph({ text:"" }));
+    }
+  }
+  const noSrc=$("#docNoSrc").checked;
   const lines=fullMarkdown.replace(/\r/g,"").split("\n");
-  for(let raw of lines){
+  for(let li=0; li<lines.length; li++){
+    const raw=lines[li];
     const line=raw.replace(/\s+$/,"");
+    if(noSrc && /Nguồn tham chiếu/i.test(line)) continue;
+    if(/^\s*\|/.test(line)){                       // bảng Markdown
+      const blk=[line]; while(li+1<lines.length && /^\s*\|/.test(lines[li+1])) blk.push(lines[++li].replace(/\s+$/,""));
+      const rows=blk.filter(r=>!/^\s*\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)*\|?\s*$/.test(r))
+        .map(r=>r.trim().replace(/^\|/,"").replace(/\|$/,"").split("|").map(c=>c.trim()));
+      if(rows.length){ const w=Math.max(...rows.map(r=>r.length)); rows.forEach(r=>{ while(r.length<w) r.push(""); }); children.push(mkTable(rows,true)); children.push(new Paragraph({ text:"" })); }
+      continue;
+    }
     if(line.trim()===""){ children.push(new Paragraph({ text:"" })); continue; }
     const fm=line.match(FIG_LINE);
     if(fm){
@@ -835,7 +921,7 @@ $("#exportDocx").addEventListener("click",async()=>{
   }
 
   const doc=new Document({
-    styles:{ default:{ document:{ run:{ font:"Times New Roman", size:26 } } } },
+    styles:{ default:{ document:{ run:{ font:"Times New Roman", size:+$("#docFont").value||26 } } } },
     sections:[{ properties:{}, children }]
   });
   Packer.toBlob(doc).then(blob=>{
