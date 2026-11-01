@@ -118,6 +118,18 @@
     <p class="hint" style="margin-top:0">Tải PDF <b>SGK Lịch sử 10, 11, 12 (Kết nối tri thức)</b> và <b>Chương trình GDPT 2018</b> để AI bám sát sách, không lấy nguồn ngoài. Tải 1 lần, dùng lại trong 48 giờ.</p>
     <div class="drop" id="refDrop">📚 Bấm hoặc kéo–thả file PDF sách giáo khoa vào đây</div>
     <input type="file" id="refInput" accept="application/pdf" multiple hidden>
+    <div style="margin-top:8px"><button class="btn-sec" id="driveBtn" type="button">☁️ Chọn SGK từ Google Drive</button></div>
+    <details id="driveCfg" style="margin-top:6px">
+      <summary>⚙️ Thiết lập Google Drive (làm 1 lần)</summary>
+      <p class="hint">Cần 2 thông tin từ <a href="https://console.cloud.google.com/" target="_blank" rel="noopener">Google Cloud Console</a> (miễn phí):
+        <br>1) Tạo project → <b>APIs &amp; Services → Library</b> → bật <b>Google Drive API</b> và <b>Google Picker API</b>.
+        <br>2) <b>Credentials → Create credentials → API key</b> → dán vào ô “API key (Picker)”.
+        <br>3) <b>Create credentials → OAuth client ID</b> (loại <i>Web application</i>), mục <i>Authorized JavaScript origins</i> thêm <code>https://nguyenbm1979.github.io</code> → dán Client ID vào ô dưới.
+        <br>4) <b>OAuth consent screen</b>: chọn External, thêm email của bạn vào <i>Test users</i>. Chỉ xin quyền <code>drive.file</code> (chỉ đọc những file bạn chọn), không cần xét duyệt.</p>
+      <label>OAuth Client ID</label><input type="text" id="gClientId" placeholder="xxxxxxxx.apps.googleusercontent.com">
+      <label style="margin-top:8px">API key (Picker)</label><input type="text" id="gApiKey" placeholder="AIza…">
+      <div id="driveMsg" class="hint"></div>
+    </details>
     <ul class="files" id="refList"></ul>
     <p class="hint">💡 Sách được <b>ghi nhớ ngay trong trình duyệt máy này</b>: chọn 1 lần, các lần sau tự nạp lại — không cần chọn lại 9 file. Mẹo: chỉ nạp sách lớp liên quan đề để chạy nhanh hơn.</p>
     <button class="btn-sec" id="reloadRefs" type="button">🔄 Nạp lại sách lên AI</button>
@@ -467,7 +479,7 @@ async function ensureRefsFresh(){
     }catch(err){ d.busy=false; renderRefs(); throw err; }
   }
 }
-bindDrop($("#refDrop"),$("#refInput"), async files=>{
+const addRefFiles = async files=>{
   const key=getKey(); if(!key){ setStatus("⚠️ Nhập API key trước khi tải SGK.","err"); return; }
   for(const file of files){
     if(file.type!=="application/pdf"){ setStatus("⚠️ Tài liệu tham chiếu chỉ nhận PDF.","err"); continue; }
@@ -487,11 +499,62 @@ bindDrop($("#refDrop"),$("#refInput"), async files=>{
       setStatus("❌ "+err.message,"err");
     }
   }
-});
+};
+bindDrop($("#refDrop"),$("#refInput"), addRefFiles);
 $("#reloadRefs").addEventListener("click", async()=>{
   const key=getKey(); if(!key){ setStatus("⚠️ Nhập API key trước.","err"); return; }
   try{ await ensureRefsFresh(); setStatus("✅ Sách đã sẵn sàng trên AI.","ok"); }
   catch(err){ setStatus("❌ "+err.message,"err"); }
+});
+
+// ---------- Google Drive (Picker + OAuth, quyền drive.file) ----------
+const GD={ cid:"gdrive_client_id", key:"gdrive_api_key" };   // có thể điền sẵn giá trị mặc định ở đây để giáo viên khỏi cấu hình
+let gToken=null, gTokenExp=0, gTokenClient=null;
+function loadScript(src){ return new Promise((res,rej)=>{ if([...document.scripts].some(x=>x.src===src)) return res(); const sc=document.createElement("script"); sc.src=src; sc.onload=res; sc.onerror=()=>rej(new Error("Không tải được "+src)); document.head.appendChild(sc); }); }
+$("#gClientId").value=localStorage.getItem(GD.cid)||""; $("#gApiKey").value=localStorage.getItem(GD.key)||"";
+$("#gClientId").addEventListener("change",e=>localStorage.setItem(GD.cid,e.target.value.trim()));
+$("#gApiKey").addEventListener("change",e=>localStorage.setItem(GD.key,e.target.value.trim()));
+function driveMsg(h,c){ const m=$("#driveMsg"); m.innerHTML=h; m.style.color=c||"#6b7686"; }
+async function driveToken(){
+  if(gToken && Date.now()<gTokenExp-60000) return gToken;
+  await loadScript("https://accounts.google.com/gsi/client");
+  return new Promise((res,rej)=>{
+    gTokenClient=google.accounts.oauth2.initTokenClient({
+      client_id:$("#gClientId").value.trim(), scope:"https://www.googleapis.com/auth/drive.file",
+      callback:r=>{ if(r.error) return rej(new Error(r.error_description||r.error)); gToken=r.access_token; gTokenExp=Date.now()+(r.expires_in||3600)*1000; res(gToken); },
+      error_callback:e=>rej(new Error(e.type||"Đăng nhập Google bị hủy"))
+    });
+    gTokenClient.requestAccessToken({ prompt: gToken?"":"consent" });
+  });
+}
+async function pickDrivePdfs(token){
+  await loadScript("https://apis.google.com/js/api.js");
+  await new Promise(r=>gapi.load("picker",r));
+  return new Promise(res=>{
+    const view=new google.picker.DocsView().setMimeTypes("application/pdf").setIncludeFolders(true).setSelectFolderEnabled(false);
+    new google.picker.PickerBuilder().addView(view).addView(new google.picker.DocsUploadView())
+      .setOAuthToken(token).setDeveloperKey($("#gApiKey").value.trim())
+      .setCallback(d=>{ if(d.action==="picked") res(d.docs); else if(d.action==="cancel") res([]); })
+      .enableFeature(google.picker.Feature.MULTISELECT_ENABLED).setTitle("Chọn file PDF SGK").build().setVisible(true);
+  });
+}
+$("#driveBtn").addEventListener("click", async()=>{
+  if(!$("#gClientId").value.trim()||!$("#gApiKey").value.trim()){ $("#driveCfg").open=true; driveMsg("⚠️ Hãy điền Client ID và API key (hướng dẫn ở trên) rồi bấm lại.","#c0392b"); return; }
+  try{
+    driveMsg('<span class="spin"></span> Đang đăng nhập Google…');
+    const token=await driveToken();
+    const docs=await pickDrivePdfs(token);
+    if(!docs.length){ driveMsg("Đã hủy, chưa chọn file nào."); return; }
+    const files=[];
+    for(const [i,d] of docs.entries()){
+      driveMsg(`<span class="spin"></span> Đang tải “${d.name}” từ Drive (${i+1}/${docs.length})…`);
+      const r=await fetch(`https://www.googleapis.com/drive/v3/files/${d.id}?alt=media`,{ headers:{ Authorization:"Bearer "+token } });
+      if(!r.ok) throw new Error(`Tải “${d.name}” thất bại (${r.status}). Hãy chọn file PDF thật, không phải Google Docs.`);
+      files.push(new File([await r.blob()], d.name, { type:"application/pdf" }));
+    }
+    driveMsg("✅ Đã lấy "+files.length+" file từ Drive, đang nạp lên AI…","#1a7f4b");
+    await addRefFiles(files);
+  }catch(err){ driveMsg("❌ "+err.message,"#c0392b"); }
 });
 
 // ---------- Đề thi ----------
