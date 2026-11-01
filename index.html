@@ -61,6 +61,11 @@
   footer{text-align:center;font-size:12px;color:var(--muted);padding:10px 0 30px}
   a{color:var(--brand2)}
   #output img.fig{display:block;max-width:100%;max-height:420px;margin:8px auto;border:1px solid var(--line);border-radius:4px}
+  .figbox{position:relative;text-align:center;margin:8px 0}
+  .figbox button{position:absolute;top:6px;right:6px;font-size:12px;padding:3px 8px;border:1px solid var(--line);background:#fff;border-radius:6px;cursor:pointer;opacity:.9}
+  #figModal{position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:50;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;overflow:auto;padding:16px}
+  #figModal .bar{background:#fff;border-radius:8px;padding:10px 14px;margin-bottom:10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;max-width:100%}
+  #figModal canvas{background:#fff;cursor:crosshair;touch-action:none;max-width:100%}
   #output .figwait{color:var(--muted);font-size:13px;font-style:italic}
 </style>
 </head>
@@ -544,6 +549,39 @@ function safeErr(t){
     return msg;
   }catch(_){ return t; }
 }
+// ---------- Chỉnh khung hình thủ công ----------
+async function openFigEditor(idx){
+  const ms=[...fullMarkdown.matchAll(FIG_RE)]; const m=ms[idx]; if(!m) return;
+  let box=m[3].replace(/\s+/g,"").split(",").map(Number); if(box.length!==4||box.some(isNaN)) box=[100,100,400,400];
+  let src; try{ src=await getPageCanvas(+m[1],+m[2]); }catch(err){ setStatus("❌ "+err.message,"err"); return; }
+  const ov=document.createElement("div"); ov.id="figModal";
+  ov.innerHTML='<div class="bar"><b>Kéo chuột/ngón tay trên trang để vẽ khung mới quanh hình</b><button class="btn-primary" data-a="ok" type="button">✔ Lưu khung</button><button class="btn-sec" data-a="del" type="button">🗑 Bỏ hình này</button><button class="btn-sec" data-a="no" type="button">Hủy</button></div>';
+  const cv=document.createElement("canvas"); const k=Math.min(1,(innerWidth-40)/src.width,1100/src.width);
+  cv.width=Math.round(src.width*k); cv.height=Math.round(src.height*k); ov.appendChild(cv); document.body.appendChild(ov);
+  const cx=cv.getContext("2d");
+  function draw(){
+    cx.drawImage(src,0,0,cv.width,cv.height);
+    const [y1,x1,y2,x2]=box.map((v,i)=>v/1000*(i%2?cv.width:cv.height));
+    cx.fillStyle="rgba(0,0,0,.45)"; cx.fillRect(0,0,cv.width,cv.height);
+    cx.drawImage(src,x1/k,y1/k,(x2-x1)/k,(y2-y1)/k,x1,y1,x2-x1,y2-y1);
+    cx.strokeStyle="#e11"; cx.lineWidth=2; cx.strokeRect(x1,y1,x2-x1,y2-y1);
+  }
+  draw();
+  let st=null; const pos=e=>{ const r=cv.getBoundingClientRect(); return [Math.min(1000,Math.max(0,(e.clientY-r.top)/r.height*1000)),Math.min(1000,Math.max(0,(e.clientX-r.left)/r.width*1000))]; };
+  cv.onpointerdown=e=>{ cv.setPointerCapture(e.pointerId); st=pos(e); };
+  cv.onpointermove=e=>{ if(!st) return; const q=pos(e); box=[Math.min(st[0],q[0]),Math.min(st[1],q[1]),Math.max(st[0],q[0]),Math.max(st[1],q[1])]; draw(); };
+  cv.onpointerup=()=>{ st=null; };
+  ov.onclick=e=>{
+    const a=e.target.dataset&&e.target.dataset.a; if(!a) return;
+    if(a==="ok"&&(box[2]-box[0]<5||box[3]-box[1]<5)){ alert("Khung quá nhỏ."); return; }
+    if(a==="ok"||a==="del"){
+      const rep=a==="del"?"":`[[HINH nguon=${m[1]} trang=${m[2]} khung=${box.map(Math.round).join(",")}]]`;
+      fullMarkdown=fullMarkdown.slice(0,m.index)+rep+fullMarkdown.slice(m.index+m[0].length); renderOutput();
+    }
+    ov.remove();
+  };
+}
+
 // ---------- Hình minh họa: cắt khung từ ảnh/PDF đề ----------
 const FIG_RE=/\[\[HINH\s+nguon\s*=\s*(\d+)\s+trang\s*=\s*(\d+)\s+khung\s*=\s*([\d.\s,]+?)\s*\]\]/g;
 const FIG_LINE=/^\s*\[\[HINH\s+nguon\s*=\s*(\d+)\s+trang\s*=\s*(\d+)\s+khung\s*=\s*([\d.\s,]+?)\s*\]\]\s*$/;
@@ -605,8 +643,13 @@ function renderOutput(){
   $("#output").innerHTML=marked.parse(md);
   $("#output").querySelectorAll("[data-f]").forEach(el=>{
     const [n,p,box]=figs[+el.dataset.f];
-    getCrop(n,p,box).then(c=>{ const im=document.createElement("img"); im.className="fig"; im.src=c.url; el.replaceWith(im); })
-      .catch(err=>{ el.textContent="⚠️ Không cắt được hình: "+err.message; });
+    getCrop(n,p,box).then(c=>{
+      const w=document.createElement("div"); w.className="figbox";
+      const im=document.createElement("img"); im.className="fig"; im.src=c.url;
+      const bt=document.createElement("button"); bt.type="button"; bt.textContent="✂ Chỉnh khung"; bt.onclick=()=>openFigEditor(+el.dataset.f);
+      w.append(im,bt); el.replaceWith(w); })
+      .catch(err=>{ el.innerHTML="⚠️ Không cắt được hình: "+err.message+' <button type="button" class="btn-sec">✂ Chỉnh khung</button>';
+        el.querySelector("button").onclick=()=>openFigEditor(+el.dataset.f); });
   });
 }
 

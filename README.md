@@ -6,7 +6,7 @@ dùng Google Gemini (AI Studio). Bám sát SGK Kết nối tri thức & Chương
 - Chạy hoàn toàn trong trình duyệt, không cần server, dùng được trên Windows/macOS/điện thoại.
 - Chép **đầy đủ đề bài** (cả phương án A/B/C/D, đoạn tư liệu) rồi mới đến **lời giải chi tiết**.
 - Xử lý 3 dạng: trắc nghiệm nhiều lựa chọn, trắc nghiệm đúng/sai, tự luận.
-- **Tự cắt hình minh họa** (bản đồ, tranh ảnh, biểu đồ, lược đồ…) trong ảnh/PDF đề, hiển thị ngay dưới câu hỏi và chèn vào file Word. Bật/tắt bằng ô tích ở mục 3.
+- **Tự cắt hình minh họa** (bản đồ, tranh ảnh, biểu đồ, lược đồ…) trong ảnh/PDF đề, hiển thị ngay dưới câu hỏi và chèn vào file Word. Bật/tắt bằng ô tích ở mục 3. Nếu AI cắt lệch, bấm **✂ Chỉnh khung** dưới hình rồi kéo chuột/ngón tay vẽ lại khung (hoặc bỏ hình).
 - `Temperature = 0` và **không dùng Google Search** để khóa nguồn, tránh AI bịa kiến thức.
 
 ## 1. Lấy API key (miễn phí)
