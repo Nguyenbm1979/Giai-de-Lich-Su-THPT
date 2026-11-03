@@ -163,6 +163,7 @@
         <div><label>Tên trường / tổ</label><input type="text" id="docSchool" placeholder="VD: Trường THPT …"></div>
         <div><label>Tên đề</label><input type="text" id="docTitle" placeholder="VD: Đề kiểm tra giữa kì I – Lịch sử 12"></div>
         <div><label>Năm học</label><input type="text" id="docYear" placeholder="2025–2026"></div>
+        <div style="flex:0 0 190px;min-width:0"><label>Căn lề Word ngân hàng đề</label><select id="docLayout"><option value="btn" selected>Chuẩn BTN (4/2/1 cột đều)</option><option value="mau">Theo file mẫu (thụt 1,75 cm)</option></select></div>
         <div style="flex:0 0 110px;min-width:0"><label>Cỡ chữ</label><select id="docFont"><option value="24">12 pt</option><option value="26" selected>13 pt</option><option value="28">14 pt</option></select></div>
       </div>
       <label style="display:flex;gap:8px;align-items:center;margin-top:6px"><input type="checkbox" id="docKeyTable" checked style="width:auto"> Thêm bảng đáp án tóm tắt ở đầu file</label>
@@ -1116,11 +1117,25 @@ function mdRuns(text, base={}){
   return out.length?out:[new T({ ...base, text:"" })];
 }
 const cleanMd=t=>String(t||"").replace(/^\s*(?:[*-]\s+)?/,"").replace(/\s+$/,"");
+// Gemini đôi khi trả "A. … B. … C. … D. …" trên MỘT dòng: tách thành 4 dòng (A→B→C→D đúng thứ tự mới tách)
+function splitInlineOptions(l){
+  const reA=/(^|\s)(?:\*\*)?A(?:\*\*)?[.)]\s/g; let a;
+  while((a=reA.exec(l))){
+    const startA=a.index+(a[1]?1:0); let from=reA.lastIndex; const pos=[startA]; let ok=true;
+    for(const k of ["B","C","D"]){
+      const re=new RegExp("\\s(?:\\*\\*)?"+k+"(?:\\*\\*)?[.)]\\s","g"); re.lastIndex=from; const r=re.exec(l);
+      if(!r){ ok=false; break; } pos.push(r.index+1); from=r.index+r[0].length;
+    }
+    if(ok){ const out=[]; if(l.slice(0,startA).trim()) out.push(l.slice(0,startA).trim());
+      pos.forEach((st,i)=>out.push(l.slice(st,pos[i+1]!==undefined?pos[i+1]:l.length).trim())); return out; }
+  }
+  return [l];
+}
 function parseBank(md){
   const res={ mcq:[], tf:[], essay:[] };
   const parts=md.replace(/\r/g,"").split(/^##\s*Câu\s*\d+\s*[:.]?\s*/m); parts.shift();
   for(const body of parts){
-    const lines=body.split("\n").filter(l=>!/^\s*---+\s*$/.test(l));
+    const lines=body.split("\n").filter(l=>!/^\s*---+\s*$/.test(l)).flatMap(l=>/Đáp án chọn|\*\*Ý\s*[a-d]\)/i.test(l)?[l]:splitInlineOptions(l));
     const ans=body.match(/Đáp án chọn:\s*\**\s*\[?\s*([A-D])\b/i);
     const verd=[...body.matchAll(/\*\*Ý\s*([a-d])\)\*\*\s*\[?\s*(ĐÚNG|SAI)/gi)];
     if(ans){
@@ -1158,6 +1173,21 @@ function parseBank(md){
   }
   return res;
 }
+// Chuẩn BTN (btn_word.py): ước lượng bề rộng 0,19 cm/ký tự (Times New Roman 12); cột = bề rộng dòng / 4;
+// 4 phương án 1 dòng nếu dài nhất ≤ cột − 0,4 cm; 2×2 nếu ≤ nửa dòng − 0,4 cm; còn lại mỗi phương án 1 dòng.
+const BTN_CM_KY_TU=0.19, BTN_GIAN_COT_CM=0.4, TW_CM=567;
+function btnSoCot(texts, rongDongCm){
+  if(texts.length<2) return 1;
+  const lon=Math.max(...texts.map(t=>t.length*BTN_CM_KY_TU));
+  if(texts.length===4 && lon<=rongDongCm/4-BTN_GIAN_COT_CM) return 4;
+  if(lon<=rongDongCm/2-BTN_GIAN_COT_CM) return 2;
+  return 1;
+}
+function btnTabs(soCot, rongDongCm){      // điểm dừng tab tại i*(4/soCot)*cột (tính bằng twip, từ lề trái)
+  const cot=rongDongCm/4, buoc=4/soCot, out=[];
+  for(let i=1;i<soCot;i++) out.push(Math.round(i*buoc*cot*TW_CM));
+  return out;
+}
 const fmtPts=x=>{ const r=Math.round(x*100)/100; return (Number.isInteger(r)?r.toFixed(1):String(r)).replace(".",","); };
 $("#exportBank").addEventListener("click",async()=>{
   try{
@@ -1170,8 +1200,9 @@ $("#exportBank").addEventListener("click",async()=>{
     if(school) P({ alignment:AlignmentType.CENTER, children:[new TextRun({ text:school.toUpperCase(), bold:true })] });
     P({ alignment:AlignmentType.CENTER, spacing:{ after:160, line:276 }, children:[new TextRun({ text:dtitle||"ĐỀ KIỂM TRA MÔN LỊCH SỬ", bold:true })] });
     if(dyear) P({ alignment:AlignmentType.CENTER, spacing:{ after:160, line:276 }, children:[new TextRun({ text:"Năm học "+dyear, bold:true })] });
-    const sp={ line:276 }, stemP=ref=>({ numbering:{ reference:ref, level:0 }, tabStops:[{ type:TabStopType.LEFT, position:992 }], spacing:{ before:120, after:0, line:276 }, alignment:J });
-    const bodyP=(extra={})=>({ alignment:J, spacing:{ after:0, line:276 }, indent:{ left:992 }, ...extra });
+    const btn=$("#docLayout").value!=="mau", IND=btn?0:992, PW=(11907-1134-851)/TW_CM;   // PW = bề rộng dòng (cm)
+    const stemP=ref=>({ numbering:{ reference:ref, level:0 }, ...(btn?{}:{ tabStops:[{ type:TabStopType.LEFT, position:992 }] }), spacing:{ before:120, after:0, line:276 }, alignment:J });
+    const bodyP=(extra={})=>({ alignment:J, spacing:{ after:0, line:276 }, indent:{ left:IND }, ...extra });
     const splitFigs=arr=>{ const rest=[], list=[]; for(const l of arr){ const fm=l.match(FIG_LINE); if(fm) list.push(fm); else rest.push(l); } return { rest, list }; };
     const addFigs=async(list)=>{ for(const fm of list){
       try{ const c=await getCrop(fm[1],fm[2],fm[3].replace(/\s+/g,"")); const k=Math.min(1,420/c.w,320/c.h);
@@ -1185,7 +1216,7 @@ $("#exportBank").addEventListener("click",async()=>{
       const m=l.match(/^(\s*)[*-]\s+(.*)$/); const lv=m?Math.floor(m[1].length/2):0; let t=m?m[2]:l.trim();
       if(/^\*\*Nguồn tham chiếu:\*\*/i.test(t)){ P(bodyP({ children:mdRuns("Nguồn: "+srcLine(t),{ italics:true }) })); continue; }
       t=t.replace(/^\*\*Lời giải chi tiết:\*\*\s*/i,"").replace(/^\*\*Lý giải:\*\*\s*/i,"");
-      P(bodyP(lv>=1?{ indent:{ left:992+lv*360 }, children:mdRuns("– "+t) }:{ children:mdRuns(t) }));
+      P(bodyP(lv>=1?{ indent:{ left:IND+lv*360 }, children:mdRuns("– "+t) }:{ children:mdRuns(t) }));
     } };
     if(q.mcq.length||q.tf.length){
       P({ alignment:J, spacing:{ before:120, after:120 }, children:[new TextRun({ text:"PHẦN A: TRẮC NGHIỆM", bold:true, color:NAVY })] });
@@ -1198,13 +1229,15 @@ $("#exportBank").addEventListener("click",async()=>{
         for(const extra of stem.slice(1)) P(bodyP({ children:mdRuns(extra) }));
         await addFigs(sf.list);
         const L=["A","B","C","D"].filter(k=>it.opts[k]!==undefined);
-        const maxLen=Math.max(0,...L.map(k=>(k+". "+it.opts[k]).length));
-        const per=maxLen<=15?4:maxLen<=24?2:1;
+        const plain=k=>(k+". "+String(it.opts[k]).replace(/\*+/g,"").replace(/`/g,"")).trim();
+        const maxLen=Math.max(0,...L.map(k=>plain(k).length));
+        const per=btn?btnSoCot(L.map(plain),PW):(maxLen<=15?4:maxLen<=24?2:1);
+        const tabPos=btn?btnTabs(per,PW):[3402,5669,7937];
         const optRuns=k=>{ const ok=k===it.ans; const lab=ok?[new TextRun({ text:k, bold:true, underline:{}, color:BLUE }), new TextRun({ text:". ", bold:true, color:BLUE })]:[new TextRun({ text:k+". ", bold:true, color:BLUE })];
           return [...lab, ...mdRuns(it.opts[k], ok?{ color:RED }:{})]; };
         for(let i=0;i<L.length;i+=per){
           const kids=[]; L.slice(i,i+per).forEach((k,j)=>{ if(j) kids.push(new TextRun({ children:[new Tab()] })); kids.push(...optRuns(k)); });
-          P({ ...bodyP(per===1?{ spacing:{ after:160, line:276 } }:{}), tabStops:[3402,5669,7937].map(pos=>({ type:TabStopType.LEFT, position:pos })), children:kids });
+          P({ ...bodyP(per===1&&!btn?{ spacing:{ after:160, line:276 } }:{}), tabStops:tabPos.map(pos=>({ type:TabStopType.LEFT, position:pos })), children:kids });
         }
         if(solOn){ solHead(); P(bodyP({ children:[new TextRun({ text:"Chọn ", bold:true }), new TextRun({ text:it.ans, bold:true, color:RED }), new TextRun({ text:"." , bold:true })] })); solLines(it.sol); }
       }
@@ -1217,7 +1250,7 @@ $("#exportBank").addEventListener("click",async()=>{
         await addFigs(sf.list);
         for(const extra of pre.slice(1)){
           const cite=/^\(.*\)\s*$/.test(extra);
-          P(bodyP(cite?{ alignment:AlignmentType.RIGHT, children:mdRuns(extra,{ italics:true }) }:{ indent:{ left:992, firstLine:284 }, children:mdRuns(extra,/^[“"]/.test(extra)?{ italics:true }:{}) }));
+          P(bodyP(cite?{ alignment:AlignmentType.RIGHT, children:mdRuns(extra,{ italics:true }) }:{ indent:{ left:IND, firstLine:284 }, children:mdRuns(extra,/^[“"]/.test(extra)?{ italics:true }:{}) }));
         }
         for(const k of ["a","b","c","d"]){
           const ok=!!it.tv[k], txt=it.st[k]!==undefined?it.st[k]:"[không đọc được nội dung ý này]";
@@ -1237,8 +1270,8 @@ $("#exportBank").addEventListener("click",async()=>{
         if(solOn&&it.key.length){ solHead(); solLines(it.key); }
       }
     }
-    const lvl=ref=>({ reference:ref, levels:[{ level:0, format:LevelFormat.DECIMAL, text:"Câu %1:", alignment:AlignmentType.LEFT,
-      style:{ paragraph:{ indent:{ left:992, hanging:992 } }, run:{ bold:true, color:BLUE } } }] });
+    const lvl=ref=>({ reference:ref, levels:[{ level:0, format:LevelFormat.DECIMAL, text:btn?"Câu %1.":"Câu %1:", alignment:AlignmentType.LEFT, suffix:btn?D.LevelSuffix.SPACE:D.LevelSuffix.TAB,
+      style:{ paragraph:{ indent:btn?{ left:0, firstLine:0 }:{ left:992, hanging:992 } }, run:{ bold:true, color:BLUE } } }] });
     const doc=new Document({
       numbering:{ config:[lvl("c1"),lvl("c2"),lvl("c3")] },
       styles:{ default:{ document:{ run:{ font:"Times New Roman", size:24 }, paragraph:{ spacing:{ after:0, line:276 } } } } },

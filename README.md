@@ -15,7 +15,7 @@ dùng Google Gemini (AI Studio). Bám sát SGK Kết nối tri thức & Chương
 - **📊 Ước tính token** trước khi giải, hiện tiến độ số câu khi AI đang viết và số token đã dùng khi xong.
 - Giao diện **sáng/tối** (nút ở góc trên phải) và bố cục thân thiện điện thoại.
 - **Dùng gói Gemini Pro (không cần API):** cài tiện ích Chrome trong thư mục `TienIch-Chrome-GiaiDeSu` (xem `HUONG-DAN.md` trong đó), rồi bấm **🚀 Gửi sang Gemini Pro** ở mục 4: trang tự gửi đề + prompt vào tab Gemini và nhận lời giải về. Không có tiện ích thì dùng cách sao chép/dán thủ công.
-- **Word ngân hàng đề** (nút ⬇ Word ngân hàng đề): bố cục giống file mẫu KIỂM TRA GIỮA HỌC KÌ – SỬ 12 (A4, Times New Roman 12, câu tự đánh số “Câu 1:” màu xanh, phương án đúng chữ đỏ + gạch chân, ý đúng của câu đúng/sai tô đỏ), kèm mục **Lời giải** căn giữa cuối mỗi câu giải thích vì sao chọn đáp án / vì sao từng ý đúng hoặc sai. Tắt/bật lời giải trong “Tùy chọn file Word”.
+- **Word ngân hàng đề** (nút ⬇ Word ngân hàng đề): bố cục giống file mẫu KIỂM TRA GIỮA HỌC KÌ – SỬ 12 (A4, Times New Roman 12, câu tự đánh số “Câu 1:” màu xanh, phương án đúng chữ đỏ + gạch chân, ý đúng của câu đúng/sai tô đỏ), phương án canh đều theo **chuẩn BTN** (đo độ dài rồi xếp 4 / 2×2 / 1 cột đều nhau bằng điểm dừng tab; có thể đổi sang “Theo file mẫu” trong Tùy chọn file Word), kèm mục **Lời giải** căn giữa cuối mỗi câu giải thích vì sao chọn đáp án / vì sao từng ý đúng hoặc sai. Tắt/bật lời giải trong “Tùy chọn file Word”.
 - `Temperature = 0` và **không dùng Google Search** để khóa nguồn, tránh AI bịa kiến thức.
 
 ## 1. Lấy API key (miễn phí)
