@@ -93,14 +93,100 @@
 <header>
   <button id="themeBtn" type="button" title="Đổi giao diện sáng/tối">🌙</button>
   <h1>📜 Trợ lý giải đề Lịch sử THPT</h1>
-  <p>Tải ảnh/PDF đề thi → AI giải chi tiết theo SGK Kết nối tri thức & GDPT 2018 → xuất file Word (.docx)</p>
+  <p>Tải ảnh/PDF/Word đề → Gemini Pro giải chi tiết theo SGK Kết nối tri thức & GDPT 2018 → xuất file Word (.docx / ngân hàng đề)</p>
 </header>
 
 <div class="wrap">
 
-  <!-- 1. Cài đặt -->
+  <!-- 1. Đề thi -->
   <div class="card">
-    <h2><span class="num">1</span> Cài đặt (chỉ làm 1 lần)</h2>
+    <h2><span class="num">1</span> Đề thi cần giải</h2>
+    <div class="drop" id="examDrop">🖼️ Bấm hoặc kéo–thả <b>ảnh</b>, <b>PDF</b> hoặc <b>Word (.docx)</b> đề thi vào đây</div>
+    <input type="file" id="examInput" accept="image/*,application/pdf,.docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document" multiple hidden>
+    <ul class="files" id="examList"></ul>
+    <details id="moreOpts" style="margin-top:10px"><summary>⚙️ Tùy chọn thêm: chỉ giải một số câu • đáp án chuẩn để đối chiếu • yêu cầu riêng</summary>
+    <div class="row" style="margin-top:10px">
+      <div><label>Chỉ giải các câu (tùy chọn)</label><input type="text" id="qRange" placeholder="VD: 1-20, 25, 31-34 — để trống = giải cả đề"></div>
+    </div>
+    <details style="margin-top:8px"><summary>✅ Đáp án chuẩn để đối chiếu (tùy chọn)</summary>
+      <textarea id="keyText" style="min-height:70px;margin:6px 0" placeholder="Trắc nghiệm: 1A 2B 3C 4D …   Đúng/sai: 21 ĐSĐS 22 SĐĐS …"></textarea>
+      <p class="hint">Dán đáp án chuẩn của đề. Sau khi giải, trang đánh dấu câu nào AI cho đáp án khác để bạn soát lại. (Chữ Đ = Đúng, S = Sai cho câu đúng/sai.)</p>
+    </details>
+    <label style="margin-top:12px">Yêu cầu gửi kèm</label>
+    <input type="text" id="userMsg" value="Hãy giải chi tiết tất cả câu hỏi trong đề thi này theo đúng quy tắc trích dẫn nguồn SGK và định dạng đầu ra đã thiết lập.">
+    </details>
+  </div>
+
+  <!-- 2. Giải bằng Gemini Pro (chính) -->
+  <div class="card">
+    <h2><span class="num">2</span> Giải bằng Gemini Pro <span class="badge">gói Pro của bạn • không cần API key</span></h2>
+      <div id="extBox" style="border:1px solid var(--line);border-radius:10px;padding:10px;margin:0 0 8px">
+        <b>🚀 Tự động gửi sang Gemini Pro</b> <span id="extState" class="hint">đang tìm tiện ích Chrome…</span>
+        <div id="extForm" hidden>
+          <div class="row" style="margin-top:6px">
+            <div><label>Model trên Gemini</label><select id="gwModel"><option value="pro" selected>Pro</option><option value="flash">Flash</option><option value="">Giữ nguyên model đang chọn</option></select></div>
+            <div><label>Tài khoản Google (số /u/N, bỏ trống = đang dùng)</label><input type="text" id="gwAcc" placeholder="VD: 0, 1, 2…"></div>
+            <div><label>Gắn thẻ @ (Gem/kỹ năng chứa SGK, tùy chọn)</label><input type="text" id="gwTag" placeholder="tên thẻ, bỏ trống nếu không có"></div>
+          </div>
+          <div class="toolbar" style="margin-top:8px"><button class="btn-primary" id="gwSend" type="button">🚀 Gửi sang Gemini Pro</button><button class="btn-sec" id="gwDiagBtn" type="button" title="Kiểm tra tiện ích có đang nói chuyện được với tab Gemini không">🩺 Kiểm tra kết nối</button><button class="btn-sec" id="gwSave" type="button" title="Ghi nhớ tên kỹ năng, model, tài khoản và tùy chọn gửi từng phần trong trình duyệt này">💾 Lưu kỹ năng</button><button class="btn-sec" id="gwRetry" type="button" hidden>↻ Thử lại</button><button class="btn-sec" id="gwCancel" type="button" hidden>⏹ Hủy</button></div>
+          <div id="gwSaved" class="hint"></div>
+          <div id="gwDiag" class="hint"></div>
+          <label style="display:flex;gap:8px;align-items:flex-start;margin-top:6px"><input type="checkbox" id="gwSplit" checked style="width:auto;margin-top:3px"> <span>Gửi <b>từng ảnh / từng trang PDF một</b> (mỗi phần một chat mới, kết quả tự nối lại) — tránh câu trả lời quá dài bị Gemini cắt hoặc xóa</span></label>
+          <p class="hint">Trang sẽ gửi ảnh/PDF/Word đề ở mục 1 và prompt, chờ Gemini trả lời rồi tự điền kết quả. Giữ Chrome mở và đừng đóng tab Gemini.</p>
+        </div>
+        <p class="hint" id="extMiss" hidden>Chưa thấy tiện ích. Cài theo hướng dẫn trong thư mục <code>TienIch-Chrome-GiaiDeSu</code> của repo (Chrome → chrome://extensions → Chế độ nhà phát triển → Tải tiện ích đã giải nén), rồi tải lại trang. Hoặc dùng cách thủ công bên dưới.</p>
+      </div>
+    <details id="proMode" style="margin:8px 0"><summary>📋 Không có tiện ích? Làm thủ công: sao chép prompt rồi dán kết quả</summary>
+      <ol class="hint" style="margin:8px 0 8px 18px;padding:0">
+        <li>Bấm <b>📋 Sao chép prompt</b>, mở <a href="https://gemini.google.com/app" target="_blank" rel="noopener">gemini.google.com</a>, chọn bản Pro/Thinking, dán prompt.</li>
+        <li>Đính kèm ảnh/PDF đề (và SGK nếu muốn) rồi gửi.</li>
+        <li>Sao chép toàn bộ câu trả lời, dán vào ô dưới và bấm <b>Dùng kết quả này</b> — trang sẽ hiển thị, đối chiếu đáp án và xuất Word như bình thường.</li>
+      </ol>
+      <button class="btn-sec" id="copyPrompt" type="button">📋 Sao chép prompt</button>
+      <textarea id="proPaste" style="min-height:140px;margin:8px 0" placeholder="Dán câu trả lời của Gemini vào đây…"></textarea>
+      <button class="btn-primary" id="useProResult" type="button">✔ Dùng kết quả này</button>
+      <p class="hint">Lưu ý: cách này không có tọa độ để tự cắt hình minh họa. Nếu Gemini trả lời làm nhiều đợt, tích “Nối thêm” bên dưới khi dán đợt sau.</p>
+      <label style="display:flex;gap:8px;align-items:center;margin-top:4px"><input type="checkbox" id="proAppend" style="width:auto"> Nối thêm vào kết quả cũ (thay vì thay thế)</label>
+    </details>
+  </div>
+
+  <!-- 3. Kết quả & xuất file -->
+  <div class="card" id="resultCard">
+    <h2><span class="num">3</span> Kết quả & Xuất file</h2>
+    <div class="toolbar">
+      <button class="btn-accent" id="exportDocx" disabled>⬇ Tải Word (.docx)</button>
+      <button class="btn-accent" id="exportBank" disabled title="Định dạng giống file mẫu ngân hàng đề: câu tự đánh số, đáp án đúng tô đỏ + gạch chân, không kèm lời giải">⬇ Word ngân hàng đề</button>
+      <button class="btn-sec" id="copyBtn" disabled>📋 Copy</button>
+    </div>
+    <details style="margin:8px 0"><summary>⚙️ Tùy chọn file Word</summary>
+      <div class="row" style="margin-top:6px">
+        <div><label>Tên trường / tổ</label><input type="text" id="docSchool" placeholder="VD: Trường THPT …"></div>
+        <div><label>Tên đề</label><input type="text" id="docTitle" placeholder="VD: Đề kiểm tra giữa kì I – Lịch sử 12"></div>
+        <div><label>Năm học</label><input type="text" id="docYear" placeholder="2025–2026"></div>
+        <div style="flex:0 0 110px;min-width:0"><label>Cỡ chữ</label><select id="docFont"><option value="24">12 pt</option><option value="26" selected>13 pt</option><option value="28">14 pt</option></select></div>
+      </div>
+      <label style="display:flex;gap:8px;align-items:center;margin-top:6px"><input type="checkbox" id="docKeyTable" checked style="width:auto"> Thêm bảng đáp án tóm tắt ở đầu file</label>
+      <label style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="docSol" checked style="width:auto"> Word ngân hàng đề: kèm <b>lời giải</b> cuối mỗi câu (chữ “Lời giải” căn giữa)</label>
+      <label style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="docNoSrc" style="width:auto"> Ẩn dòng “Nguồn tham chiếu” trong file Word</label>
+    </details>
+    <div id="status"></div>
+    <div id="keyReport"></div>
+    <div id="output"></div>
+  </div>
+
+  <!-- 4. Lịch sử -->
+  <div class="card">
+    <h2><span class="num">4</span> Lịch sử các lần giải</h2>
+    <p class="hint">Lưu tự động trong trình duyệt này (tối đa 20 lần gần nhất, kèm cả ảnh/PDF đề để cắt hình lại). Xóa dữ liệu trình duyệt sẽ mất lịch sử.</p>
+    <ul class="files" id="histList"></ul>
+  </div>
+
+  <!-- 5. API key (ít dùng) -->
+  <div class="card" id="apiCardWrap">
+    <details id="apiCard" style="border:none;padding:0;margin:0;background:none">
+      <summary style="font-size:15px;font-weight:700;padding:2px 0">⚙️ Giải bằng API key Gemini <span class="badge">ít dùng hơn — bấm để mở</span></summary>
+      <p class="hint">Dùng khi bạn muốn trang tự gọi Gemini bằng API key (không qua tab Gemini). Kết quả hiện ở mục 3 phía trên.</p>
+      <h3 style="font-size:14px;margin:12px 0 4px">① Cài đặt API key &amp; mô hình</h3>
     <label>Google AI Studio API Key</label>
     <div class="keyrow">
       <input type="password" id="apiKey" placeholder="Dán API key vào đây (bắt đầu bằng AIza…)">
@@ -131,11 +217,7 @@
       <textarea id="sysPrompt" style="min-height:220px;margin:6px 0 12px"></textarea>
       <button class="btn-sec" id="resetSys" type="button">Khôi phục prompt gốc</button>
     </details>
-  </div>
-
-  <!-- 2. Tài liệu tham chiếu -->
-  <div class="card">
-    <h2><span class="num">2</span> Tài liệu tham chiếu — SGK (tùy chọn, nên có)</h2>
+      <h3 style="font-size:14px;margin:16px 0 4px">② Nạp SGK lên AI — <u>chỉ cần khi dùng API key</u> (dùng Kỹ năng/Gem của Gemini thì sách đã có sẵn trong đó)</h3>
     <p class="hint" style="margin-top:0">Tải PDF <b>SGK Lịch sử 10, 11, 12 (Kết nối tri thức)</b> và <b>Chương trình GDPT 2018</b> để AI bám sát sách, không lấy nguồn ngoài. Tải 1 lần, dùng lại trong 48 giờ.</p>
     <div class="drop" id="refDrop">📚 Bấm hoặc kéo–thả file PDF sách giáo khoa vào đây</div>
     <input type="file" id="refInput" accept="application/pdf" multiple hidden>
@@ -154,89 +236,17 @@
     <ul class="files" id="refList"></ul>
     <p class="hint">💡 Sách được <b>ghi nhớ ngay trong trình duyệt máy này</b>: chọn 1 lần, các lần sau tự nạp lại — không cần chọn lại 9 file. Mẹo: chỉ nạp sách lớp liên quan đề để chạy nhanh hơn.</p>
     <button class="btn-sec" id="reloadRefs" type="button">🔄 Nạp lại sách lên AI</button>
-  </div>
-
-  <!-- 3. Đề thi -->
-  <div class="card">
-    <h2><span class="num">3</span> Đề thi cần giải</h2>
-    <div class="drop" id="examDrop">🖼️ Bấm hoặc kéo–thả <b>ảnh</b>, <b>PDF</b> hoặc <b>Word (.docx)</b> đề thi vào đây</div>
-    <input type="file" id="examInput" accept="image/*,application/pdf,.docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document" multiple hidden>
-    <ul class="files" id="examList"></ul>
+      <h3 style="font-size:14px;margin:16px 0 4px">③ Giải đề bằng API</h3>
     <label style="margin-top:12px;display:flex;gap:8px;align-items:flex-start;font-weight:600">
       <input type="checkbox" id="optFigures" checked style="width:auto;margin-top:3px">
       <span>🖼️ Tự cắt hình minh họa trong đề (bản đồ, tranh ảnh, biểu đồ, lược đồ…) và chèn vào lời giải/file Word</span>
     </label>
-    <div class="row" style="margin-top:10px">
-      <div><label>Chỉ giải các câu (tùy chọn)</label><input type="text" id="qRange" placeholder="VD: 1-20, 25, 31-34 — để trống = giải cả đề"></div>
-    </div>
-    <details style="margin-top:8px"><summary>✅ Đáp án chuẩn để đối chiếu (tùy chọn)</summary>
-      <textarea id="keyText" style="min-height:70px;margin:6px 0" placeholder="Trắc nghiệm: 1A 2B 3C 4D …   Đúng/sai: 21 ĐSĐS 22 SĐĐS …"></textarea>
-      <p class="hint">Dán đáp án chuẩn của đề. Sau khi giải, trang đánh dấu câu nào AI cho đáp án khác để bạn soát lại. (Chữ Đ = Đúng, S = Sai cho câu đúng/sai.)</p>
-    </details>
-    <label style="margin-top:12px">Yêu cầu gửi kèm</label>
-    <input type="text" id="userMsg" value="Hãy giải chi tiết tất cả câu hỏi trong đề thi này theo đúng quy tắc trích dẫn nguồn SGK và định dạng đầu ra đã thiết lập.">
-  </div>
-
-  <!-- 4. Chạy -->
-  <div class="card">
-    <h2><span class="num">4</span> Giải đề & Xuất file</h2>
-    <div class="toolbar">
+      <div class="toolbar" style="margin-top:8px">
       <button class="btn-primary" id="run">▶ Giải đề</button>
       <button class="btn-sec" id="continue" title="Nếu AI bị ngắt giữa chừng">↻ Giải tiếp</button>
-      <span style="flex:1"></span>
-      <button class="btn-accent" id="exportDocx" disabled>⬇ Tải Word (.docx)</button>
-      <button class="btn-accent" id="exportBank" disabled title="Định dạng giống file mẫu ngân hàng đề: câu tự đánh số, đáp án đúng tô đỏ + gạch chân, không kèm lời giải">⬇ Word ngân hàng đề</button>
       <button class="btn-sec" id="estimateBtn" title="Đếm số token sẽ gửi lên AI (không tốn hạn mức tạo nội dung)">📊 Ước tính token</button>
-      <button class="btn-sec" id="copyBtn" disabled>📋 Copy</button>
-    </div>
-    <details style="margin:8px 0"><summary>⚙️ Tùy chọn file Word</summary>
-      <div class="row" style="margin-top:6px">
-        <div><label>Tên trường / tổ</label><input type="text" id="docSchool" placeholder="VD: Trường THPT …"></div>
-        <div><label>Tên đề</label><input type="text" id="docTitle" placeholder="VD: Đề kiểm tra giữa kì I – Lịch sử 12"></div>
-        <div><label>Năm học</label><input type="text" id="docYear" placeholder="2025–2026"></div>
-        <div style="flex:0 0 110px;min-width:0"><label>Cỡ chữ</label><select id="docFont"><option value="24">12 pt</option><option value="26" selected>13 pt</option><option value="28">14 pt</option></select></div>
       </div>
-      <label style="display:flex;gap:8px;align-items:center;margin-top:6px"><input type="checkbox" id="docKeyTable" checked style="width:auto"> Thêm bảng đáp án tóm tắt ở đầu file</label>
-      <label style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="docSol" checked style="width:auto"> Word ngân hàng đề: kèm <b>lời giải</b> cuối mỗi câu (chữ “Lời giải” căn giữa)</label>
-      <label style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="docNoSrc" style="width:auto"> Ẩn dòng “Nguồn tham chiếu” trong file Word</label>
     </details>
-    <details id="proMode" style="margin:8px 0"><summary>💎 Dùng gói Gemini Pro của bạn (không cần API key)</summary>
-      <ol class="hint" style="margin:8px 0 8px 18px;padding:0">
-        <li>Bấm <b>📋 Sao chép prompt</b>, mở <a href="https://gemini.google.com/app" target="_blank" rel="noopener">gemini.google.com</a>, chọn bản Pro/Thinking, dán prompt.</li>
-        <li>Đính kèm ảnh/PDF đề (và SGK nếu muốn) rồi gửi.</li>
-        <li>Sao chép toàn bộ câu trả lời, dán vào ô dưới và bấm <b>Dùng kết quả này</b> — trang sẽ hiển thị, đối chiếu đáp án và xuất Word như bình thường.</li>
-      </ol>
-      <div id="extBox" style="border:1px solid var(--line);border-radius:10px;padding:10px;margin:8px 0">
-        <b>🚀 Tự động gửi sang Gemini Pro</b> <span id="extState" class="hint">đang tìm tiện ích Chrome…</span>
-        <div id="extForm" hidden>
-          <div class="row" style="margin-top:6px">
-            <div><label>Model trên Gemini</label><select id="gwModel"><option value="pro" selected>Pro</option><option value="flash">Flash</option><option value="">Giữ nguyên model đang chọn</option></select></div>
-            <div><label>Tài khoản Google (số /u/N, bỏ trống = đang dùng)</label><input type="text" id="gwAcc" placeholder="VD: 0, 1, 2…"></div>
-            <div><label>Gắn thẻ @ (Gem/kỹ năng chứa SGK, tùy chọn)</label><input type="text" id="gwTag" placeholder="tên thẻ, bỏ trống nếu không có"></div>
-          </div>
-          <div class="toolbar" style="margin-top:8px"><button class="btn-primary" id="gwSend" type="button">🚀 Gửi sang Gemini Pro</button><button class="btn-sec" id="gwDiagBtn" type="button" title="Kiểm tra tiện ích có đang nói chuyện được với tab Gemini không">🩺 Kiểm tra kết nối</button><button class="btn-sec" id="gwSave" type="button" title="Ghi nhớ tên kỹ năng, model, tài khoản và tùy chọn gửi từng phần trong trình duyệt này">💾 Lưu kỹ năng</button><button class="btn-sec" id="gwRetry" type="button" hidden>↻ Thử lại</button><button class="btn-sec" id="gwCancel" type="button" hidden>⏹ Hủy</button></div>
-          <div id="gwSaved" class="hint"></div>
-          <div id="gwDiag" class="hint"></div>
-          <label style="display:flex;gap:8px;align-items:flex-start;margin-top:6px"><input type="checkbox" id="gwSplit" checked style="width:auto;margin-top:3px"> <span>Gửi <b>từng ảnh / từng trang PDF một</b> (mỗi phần một chat mới, kết quả tự nối lại) — tránh câu trả lời quá dài bị Gemini cắt hoặc xóa</span></label>
-          <p class="hint">Trang sẽ gửi ảnh/PDF/Word đề ở mục 3 và prompt, chờ Gemini trả lời rồi tự điền kết quả. Giữ Chrome mở và đừng đóng tab Gemini.</p>
-        </div>
-        <p class="hint" id="extMiss" hidden>Chưa thấy tiện ích. Cài theo hướng dẫn trong thư mục <code>TienIch-Chrome-GiaiDeSu</code> của repo (Chrome → chrome://extensions → Chế độ nhà phát triển → Tải tiện ích đã giải nén), rồi tải lại trang. Hoặc dùng cách thủ công bên dưới.</p>
-      </div>
-      <button class="btn-sec" id="copyPrompt" type="button">📋 Sao chép prompt</button>
-      <textarea id="proPaste" style="min-height:140px;margin:8px 0" placeholder="Dán câu trả lời của Gemini vào đây…"></textarea>
-      <button class="btn-primary" id="useProResult" type="button">✔ Dùng kết quả này</button>
-      <p class="hint">Lưu ý: cách này không có tọa độ để tự cắt hình minh họa. Nếu Gemini trả lời làm nhiều đợt, tích “Nối thêm” bên dưới khi dán đợt sau.</p>
-      <label style="display:flex;gap:8px;align-items:center;margin-top:4px"><input type="checkbox" id="proAppend" style="width:auto"> Nối thêm vào kết quả cũ (thay vì thay thế)</label>
-    </details>
-    <div id="status"></div>
-    <div id="keyReport"></div>
-    <div id="output"></div>
-  </div>
-
-  <div class="card">
-    <h2><span class="num">5</span> Lịch sử các lần giải</h2>
-    <p class="hint">Lưu tự động trong trình duyệt này (tối đa 20 lần gần nhất, kèm cả ảnh/PDF đề để cắt hình lại). Xóa dữ liệu trình duyệt sẽ mất lịch sử.</p>
-    <ul class="files" id="histList"></ul>
   </div>
 
   <footer>Chạy hoàn toàn trong trình duyệt • Không cần cài đặt • Dùng được trên Windows, macOS, điện thoại</footer>
@@ -887,7 +897,7 @@ async function gwBuildUnits(split){
   return units;
 }
 $("#gwSend").addEventListener("click",async()=>{
-  if(!examParts.length){ setStatus("⚠️ Chưa có đề thi. Hãy tải ảnh/PDF/Word đề ở mục 3.","err"); return; }
+  if(!examParts.length){ setStatus("⚠️ Chưa có đề thi. Hãy tải ảnh/PDF/Word đề ở mục 1.","err"); return; }
   setStatus('<span class="spin"></span> Đang đóng gói đề…');
   try{
     const split=$("#gwSplit").checked;
@@ -905,6 +915,7 @@ $("#gwCancel").addEventListener("click",()=>{ toExt({loai:"huy"}); gwBusy(false)
 // ---------- Ước tính token ----------
 const fmtN=n=>Number(n).toLocaleString("vi-VN");
 $("#estimateBtn").addEventListener("click", async()=>{
+  toResult();
   const key=getKey(); if(!key){ setStatus("⚠️ Chưa nhập API key.","err"); return; }
   if(!examParts.length){ setStatus("⚠️ Chưa có đề thi để ước tính.","err"); return; }
   setStatus('<span class="spin"></span> Đang đếm token…');
@@ -950,7 +961,7 @@ async function fetchWithRetry(body,key){
 async function generate(userText, appendMode){
   const key=getKey();
   if(!key){ setStatus("⚠️ Chưa nhập API key.","err"); return; }
-  if(examParts.length===0){ setStatus("⚠️ Chưa có đề thi. Hãy tải ảnh/PDF đề ở mục 3.","err"); return; }
+  if(examParts.length===0){ setStatus("⚠️ Chưa có đề thi. Hãy tải ảnh/PDF đề ở mục 1.","err"); return; }
 
   try{ await ensureRefsFresh(); }
   catch(err){ setStatus("❌ Nạp lại sách thất bại: "+err.message,"err"); return; }
@@ -993,7 +1004,7 @@ async function generate(userText, appendMode){
     const {r,model:usedModel}=await fetchWithRetry(body,key);
     if(r.ok && usedModel!==getModel()) fbNote=` <span class="hint">(model <code>${getModel()}</code> quá tải nên đã tự chuyển sang <code>${usedModel}</code> cho lần này)</span>`;
     if(!r.ok){ const t=await r.text(); $("#output").innerHTML=`<b style="color:#c0392b">Lỗi thô từ Gemini (chụp gửi để sửa):</b><pre style="white-space:pre-wrap;font-size:12px;background:#fdf3f2;padding:10px;border-radius:8px;overflow:auto">${t.replace(/</g,"&lt;").slice(0,2000)}</pre>`; if([500,502,503,504].includes(r.status)) $("#output").insertAdjacentHTML("afterbegin",`<p>⏳ Máy chủ Google đang quá tải (không phải lỗi của trang). Trang đã thử lại và thử cả model khác nhưng chưa được. Hãy đợi 1–2 phút rồi bấm <b>▶ Giải đề</b> lại, hoặc chọn model khác ở mục 1.</p>`);
-    if(r.status===404||r.status===429||r.status===403) $("#output").insertAdjacentHTML("beforeend",`<p>💡 Mô hình <code>${getModel()}</code> có thể không dùng được với key này. Hãy kéo lên mục 1 và bấm <b>🤖 Tự chọn mô hình</b>.</p>`);
+    if(r.status===404||r.status===429||r.status===403) $("#output").insertAdjacentHTML("beforeend",`<p>💡 Mô hình <code>${getModel()}</code> có thể không dùng được với key này. Hãy mở khối <b>⚙️ Giải bằng API key</b> ở cuối trang và bấm <b>🤖 Tự chọn mô hình</b>.</p>`);
       throw new Error(safeErr(t)); }
     const reader=r.body.getReader(); const dec=new TextDecoder(); let buf=""; let finishReason=""; let usage=null;
     while(true){
@@ -1316,11 +1327,13 @@ function renderOutput(){
   });
 }
 
+const toResult=()=>{ const r=$("#resultCard"); if(r) r.scrollIntoView({ behavior:"smooth", block:"start" }); };
 $("#run").addEventListener("click",()=>{
+  toResult();
   const rg=$("#qRange").value.trim();
   generate(($("#userMsg").value.trim()||"Hãy giải chi tiết đề thi này.")+(rg?` CHỈ giải các câu sau, bỏ qua các câu còn lại (nhưng vẫn giữ nguyên số câu của đề): ${rg}.`:""),false);
 });
-$("#continue").addEventListener("click",()=>{ if(!fullMarkdown){ setStatus("Chưa có nội dung để giải tiếp.","err"); return; } generate("",true); });
+$("#continue").addEventListener("click",()=>{ toResult(); if(!fullMarkdown){ setStatus("Chưa có nội dung để giải tiếp.","err"); return; } generate("",true); });
 
 $("#copyBtn").addEventListener("click",async()=>{
   await navigator.clipboard.writeText(fullMarkdown);
