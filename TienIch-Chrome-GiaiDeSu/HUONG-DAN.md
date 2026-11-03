@@ -14,3 +14,9 @@ Cho phép trang **Giải đề Lịch sử THPT** tự gửi đề sang **gemini
 - Để Gemini bám SGK và trả đúng định dạng, nên tạo Kỹ năng (Skill) theo `Gem-GiaiDeSu/HUONG-DAN-GEM.md` rồi điền đúng tên kỹ năng (`giaidesu`) vào ô “Gắn thẻ @”.
 - Nếu Gemini tự xóa câu trả lời lúc cuối (thay bằng lời báo lỗi), tiện ích giữ lại bản dài nhất đã viết xong và trang sẽ cảnh báo để bạn soát kỹ.
 - Phụ thuộc giao diện Gemini: Google đổi giao diện có thể phải sửa các bộ chọn đầu file `trang.js`.
+
+## Gửi từng ảnh / từng trang
+Ô **Gửi từng ảnh / từng trang PDF một** (mặc định bật): mỗi ảnh, mỗi trang PDF (trang tự dựng thành ảnh) là một lượt gửi, một chat mới; kết quả nối dần vào trang. Nếu một phần lỗi, bấm **↻ Thử lại phần i/N**; các phần đã giải vẫn được giữ. Câu bị cắt ở mép ảnh sẽ được Gemini ghi chú để bạn xem ảnh kế tiếp.
+
+## Lưu kỹ năng
+Bấm **💾 Lưu kỹ năng** để trang nhớ tên thẻ `@kỹ năng`, model, tài khoản và tùy chọn gửi từng phần trong trình duyệt này; lần sau mở trang tự điền lại.
