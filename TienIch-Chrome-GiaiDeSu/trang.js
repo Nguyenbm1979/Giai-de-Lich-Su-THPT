@@ -132,9 +132,21 @@ async function ganKyNang(ten) {
 }
 
 const IM_LANG_TOI_DA = 60000;
+// Gemini đôi khi VIẾT XONG rồi bộ lọc phía máy chủ XÓA câu trả lời, thay bằng lời từ chối/báo lỗi.
+// Giữ lại bản dài nhất đã hiện trên màn hình trong lúc Gemini viết để không mất công.
+let tot = {md: "", chu: ""}, demTot = 0;
+function chupTot(last) {
+  const len = (last.innerText || "").length;
+  if (len <= tot.chu.length) return;
+  if (len > tot.chu.length + 200 || ++demTot % 4 === 0) {
+    let md = ""; try { md = htmlToMd(last); } catch (e) { md = ""; }
+    if (md.length >= tot.md.length) tot = {md, chu: last.innerText};
+  }
+}
 async function choTraLoi(soCu) {
   const batDau = Date.now();
   let cu = "", onDinh = 0, imTu = Date.now();
+  tot = {md: "", chu: ""}; demTot = 0;
   while (Date.now() - batDau < 1200000) {
     await ngu(1000);
     if (biHuy) return;
@@ -145,6 +157,7 @@ async function choTraLoi(soCu) {
     if ((Date.now() - batDau) % 15000 < 1000 && ds.length > soCu)
       log(`Gemini đang viết… ${(ds[ds.length - 1].innerText || "").length} ký tự`);
     if (ds.length <= soCu) continue;
+    chupTot(ds[ds.length - 1]);
     const chu = ds[ds.length - 1].innerText || "";
     if (!tim(NUT_NGUNG) && chu.trim() && chu === cu) { if (++onDinh >= 4) break; } else onDinh = 0;
     cu = chu;
@@ -212,7 +225,8 @@ function docKetQua() {
   let than = vung.innerText || "";
   document.querySelectorAll("message-content, user-query").forEach(e => { const t = e.innerText; if (t) than = than.split(t).join(" "); });
   let md = ""; try { md = cuoi ? htmlToMd(cuoi) : ""; } catch (e) { md = ""; }
-  return {chu: cuoi ? cuoi.innerText : "", md, than_trang: than.slice(-20000), mo_hinh: nhanModel(), tai_khoan: uHienTai()};
+  return {chu: cuoi ? cuoi.innerText : "", md, than_trang: than.slice(-20000), mo_hinh: nhanModel(), tai_khoan: uHienTai(),
+          md_tot: tot.md, chu_tot: tot.chu};
 }
 
 async function lamViec(v) {
@@ -254,7 +268,10 @@ async function lamViec(v) {
     log(`đã gửi (${v.model || "model hiện tại"}${v.ky_nang ? ", @" + v.ky_nang : ""}) — đang chờ Gemini trả lời…`);
     await choTraLoi(soCu);
     if (biHuy) return log("việc đã bị hủy — dừng");
-    ketQua(docKetQua());
+    const kq = docKetQua();
+    if (kq.md_tot && kq.md_tot.length > Math.max((kq.md || "").length * 1.5, (kq.md || "").length + 500))
+      log("Gemini đã xóa/thay câu trả lời lúc cuối — giữ lại bản đã viết xong trước đó");
+    ketQua(kq);
   } catch (e) {
     ketQua({loi: String(e && e.message || e), than_trang: docKetQua().than_trang});
   } finally {

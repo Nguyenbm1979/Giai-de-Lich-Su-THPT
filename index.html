@@ -791,9 +791,14 @@ window.addEventListener("message",ev=>{
     if(du.khong_co_tai_khoan) return setStatus("❌ Chrome chưa đăng nhập tài khoản Google thứ "+du.tai_khoan+". Kiểm tra số /u/N.","err");
     if(du.khong_thay_ky_nang) return setStatus("❌ Không tìm thấy thẻ @"+(du.ky_nang||"")+" trong Gemini. Kiểm tra tên hoặc để trống.","err");
     if(du.loi) return setStatus("❌ "+du.loi+(du.than_trang&&/giới hạn|limit|đạt đến|quota/i.test(du.than_trang)?" — có thể đã hết lượt dùng Pro hôm nay.":""),"err");
-    const text=(du.md&&du.md.trim())?du.md:du.chu;
+    let text=(du.md&&du.md.trim())?du.md:du.chu;
+    // Gemini xóa/thay câu trả lời lúc cuối (bộ lọc phía Google): dùng bản dài nhất đã viết xong
+    const tot=(du.md_tot&&du.md_tot.trim())?du.md_tot:(du.chu_tot||"");
+    const thay=tot && tot.length>Math.max((text||"").length*1.5,(text||"").length+500);
+    if(thay) text=tot;
     if(!text||!text.trim()) return setStatus("⚠️ Gemini không trả lời (có thể hết lượt Pro, bị từ chối, hoặc giao diện đã đổi). Thử dán thủ công hoặc đổi model.","err");
     applyResultText(text,false,"Gemini Pro"+(du.mo_hinh?` (${du.mo_hinh.trim().slice(0,40)})`:""));
+    if(thay) $("#status").insertAdjacentHTML("beforeend",' <b style="color:#b26a00">⚠️ Lúc cuối Gemini đã tự xóa câu trả lời (thay bằng lời báo lỗi/từ chối). Trang đã giữ lại bản đã viết xong trước đó — hãy soát kỹ trước khi dùng.</b>');
   }
 });
 toExt({loai:"ping"}); setTimeout(()=>toExt({loai:"ping"}),1200);

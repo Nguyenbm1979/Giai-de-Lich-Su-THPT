@@ -12,4 +12,5 @@ Cho phép trang **Giải đề Lịch sử THPT** tự gửi đề sang **gemini
 - Giữ Chrome mở. Nếu chưa có tab Gemini, tiện ích tự mở một tab (đưa lên trước để Gemini chạy ổn định).
 - Tiện ích chỉ chạy trên `gemini.google.com` và trang Giải đề, không đọc mật khẩu hay trang khác.
 - Để Gemini bám SGK và trả đúng định dạng, nên tạo Kỹ năng (Skill) theo `Gem-GiaiDeSu/HUONG-DAN-GEM.md` rồi điền đúng tên kỹ năng (`giaidesu`) vào ô “Gắn thẻ @”.
+- Nếu Gemini tự xóa câu trả lời lúc cuối (thay bằng lời báo lỗi), tiện ích giữ lại bản dài nhất đã viết xong và trang sẽ cảnh báo để bạn soát kỹ.
 - Phụ thuộc giao diện Gemini: Google đổi giao diện có thể phải sửa các bộ chọn đầu file `trang.js`.
