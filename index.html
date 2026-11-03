@@ -185,6 +185,7 @@
       <button class="btn-sec" id="continue" title="Nếu AI bị ngắt giữa chừng">↻ Giải tiếp</button>
       <span style="flex:1"></span>
       <button class="btn-accent" id="exportDocx" disabled>⬇ Tải Word (.docx)</button>
+      <button class="btn-accent" id="exportBank" disabled title="Định dạng giống file mẫu ngân hàng đề: câu tự đánh số, đáp án đúng tô đỏ + gạch chân, không kèm lời giải">⬇ Word ngân hàng đề</button>
       <button class="btn-sec" id="estimateBtn" title="Đếm số token sẽ gửi lên AI (không tốn hạn mức tạo nội dung)">📊 Ước tính token</button>
       <button class="btn-sec" id="copyBtn" disabled>📋 Copy</button>
     </div>
@@ -196,6 +197,7 @@
         <div style="flex:0 0 110px;min-width:0"><label>Cỡ chữ</label><select id="docFont"><option value="24">12 pt</option><option value="26" selected>13 pt</option><option value="28">14 pt</option></select></div>
       </div>
       <label style="display:flex;gap:8px;align-items:center;margin-top:6px"><input type="checkbox" id="docKeyTable" checked style="width:auto"> Thêm bảng đáp án tóm tắt ở đầu file</label>
+      <label style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="docSol" checked style="width:auto"> Word ngân hàng đề: kèm <b>lời giải</b> cuối mỗi câu (chữ “Lời giải” căn giữa)</label>
       <label style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="docNoSrc" style="width:auto"> Ẩn dòng “Nguồn tham chiếu” trong file Word</label>
     </details>
     <details id="proMode" style="margin:8px 0"><summary>💎 Dùng gói Gemini Pro của bạn (không cần API key)</summary>
@@ -748,7 +750,7 @@ async function openHistory(h){
   examParts=[]; renderExam();
   try{ await addExamFiles(h.exams.map(e=>new File([e.blob],e.name,{type:e.type}))); }catch(_){}
   fullMarkdown=h.markdown; histId=h.id; renderOutput();
-  $("#exportDocx").disabled=false; $("#copyBtn").disabled=false;
+  $("#exportDocx").disabled=false; $("#exportBank").disabled=false; $("#copyBtn").disabled=false;
   setStatus("🕘 Đã mở lại lần giải trước. Có thể tải Word, chỉnh khung hình hoặc bấm “Giải tiếp”.","ok");
   try{ compareKey(); }catch(_){}
   $("#output").scrollIntoView({ behavior:"smooth" });
@@ -767,7 +769,7 @@ function applyResultText(raw, append, nguon){
   if(append && fullMarkdown) fullMarkdown=fullMarkdown.replace(/\s+$/,"")+"\n\n"+t;
   else { fullMarkdown=t; histId=null; }
   renderOutput();
-  $("#exportDocx").disabled=false; $("#copyBtn").disabled=false;
+  $("#exportDocx").disabled=false; $("#exportBank").disabled=false; $("#copyBtn").disabled=false;
   const n=(fullMarkdown.match(/^##\s*Câu/mg)||[]).length;
   setStatus(n?`✅ Đã nhận ${n} câu từ ${nguon||"Gemini"}. Có thể tải Word hoặc đối chiếu đáp án.`:"⚠️ Không thấy tiêu đề “## Câu …” — kiểm tra lại prompt hoặc nội dung (vẫn xuất Word được).",n?"ok":"err");
   try{ compareKey(); }catch(_){}
@@ -1016,7 +1018,7 @@ async function generate(userText, appendMode){
       setStatus("⚠️ Bài dài nên bị cắt giữa chừng. Hãy bấm <b>↻ Giải tiếp</b> để AI giải nốt các câu còn lại.","err");
     else
       setStatus("✅ Xong! Bạn có thể tải Word hoặc bấm “Giải tiếp” nếu còn thiếu câu."+fbNote+(usage?` <span class="hint">(đã dùng ${fmtN(usage.promptTokenCount||0)} token vào, ${fmtN(usage.candidatesTokenCount||0)} token ra)</span>`:""),"ok");
-    $("#exportDocx").disabled=false; $("#copyBtn").disabled=false;
+    $("#exportDocx").disabled=false; $("#exportBank").disabled=false; $("#copyBtn").disabled=false;
     try{ compareKey(); }catch(_){}
     saveHistory();
   }catch(err){
@@ -1088,6 +1090,154 @@ async function openFigEditor(idx){
     ov.remove();
   };
 }
+
+
+// ---------- Xuất Word "ngân hàng đề" (theo file mẫu KIỂM TRA GIỮA HỌC KÌ 1 – SỬ 12) ----------
+function mdRuns(text, base={}){
+  const T=docx.TextRun, out=[]; text=String(text).replace(/`/g,"").replace(/<br\s*\/?>/gi," ");
+  for(const p of text.split(/(\*\*[^*]+\*\*|\*[^*\s][^*]*\*)/g)){
+    if(!p) continue; let m=p.match(/^\*\*([^*]+)\*\*$/);
+    if(m){ out.push(new T({ ...base, text:m[1], bold:true })); continue; }
+    m=p.match(/^\*([^*\s][^*]*)\*$/);
+    if(m){ out.push(new T({ ...base, text:m[1], italics:true })); continue; }
+    out.push(new T({ ...base, text:p }));
+  }
+  return out.length?out:[new T({ ...base, text:"" })];
+}
+const cleanMd=t=>String(t||"").replace(/^\s*(?:[*-]\s+)?/,"").replace(/\s+$/,"");
+function parseBank(md){
+  const res={ mcq:[], tf:[], essay:[] };
+  const parts=md.replace(/\r/g,"").split(/^##\s*Câu\s*\d+\s*[:.]?\s*/m); parts.shift();
+  for(const body of parts){
+    const lines=body.split("\n").filter(l=>!/^\s*---+\s*$/.test(l));
+    const ans=body.match(/Đáp án chọn:\s*\**\s*\[?\s*([A-D])\b/i);
+    const verd=[...body.matchAll(/\*\*Ý\s*([a-d])\)\*\*\s*\[?\s*(ĐÚNG|SAI)/gi)];
+    if(ans){
+      const optRe=/^\s*(?:[*-]\s*)?(?:\*\*)?([A-D])(?:\*\*)?[.)]\s*(?:\*\*)?\s*(.*?)(?:\*\*)?\s*$/;
+      const stem=[], opts={}; let seenOpt=false, sol=[], inSol=false;
+      for(const l of lines){
+        if(inSol){ if(l.trim()) sol.push(l); continue; }
+        if(/Đáp án chọn/i.test(l)){ inSol=true; continue; }
+        const m=l.match(optRe);
+        if(m && (!opts[m[1]])){ opts[m[1]]=m[2]; seenOpt=true; }
+        else if(!seenOpt){ if(l.trim()) stem.push(cleanMd(l)); }
+      }
+      res.mcq.push({ stem, opts, ans:ans[1].toUpperCase(), sol });
+    }else if(verd.length){
+      const cut=body.search(/^\s*[*-]\s*\*\*Ý\s*a\)\*\*/m);
+      const copied=(cut>=0?body.slice(0,cut):body).split("\n").filter(l=>l.trim()&&!/^\s*---+\s*$/.test(l));
+      const stRe=/^\s*(?:[*-]\s*)?(?:\*\*)?([a-d])\)(?:\*\*)?\s*(.*)$/; const pre=[], st={};
+      for(const l of copied){ const m=l.match(stRe); if(m&&!st[m[1]]) st[m[1]]=m[2].trim(); else if(!Object.keys(st).length) pre.push(cleanMd(l)); }
+      const tv={}; verd.forEach(m=>{ tv[m[1].toLowerCase()]=/đ/i.test(m[2][0]); });
+      const sol={}; let cur=null;
+      for(const l of (cut>=0?body.slice(cut):"").split("\n")){
+        const h=l.match(/^\s*[*-]\s*\*\*Ý\s*([a-d])\)\*\*/); if(h){ cur=h[1]; sol[cur]={ r:[], src:"" }; continue; }
+        if(!cur||!l.trim()||/^\s*---+\s*$/.test(l)) continue;
+        const t=l.replace(/^\s*[*-]\s*/,"");
+        if(/^\*\*Nguồn tham chiếu:\*\*/i.test(t)) sol[cur].src=t.replace(/^\*\*Nguồn tham chiếu:\*\*\s*/i,"").trim();
+        else sol[cur].r.push(t.replace(/^\*\*Lý giải:\*\*\s*/i,"").trim());
+      }
+      res.tf.push({ pre, st, tv, sol });
+    }else{
+      const g=lines.findIndex(l=>/Gợi ý đáp án/i.test(l));
+      const stem=(g>=0?lines.slice(0,g):lines).map(cleanMd).filter(Boolean);
+      const key=g>=0?lines.slice(g+1).filter(l=>l.trim()&&!/Nguồn tham chiếu/i.test(l)):[];
+      res.essay.push({ stem, key });
+    }
+  }
+  return res;
+}
+const fmtPts=x=>{ const r=Math.round(x*100)/100; return (Number.isInteger(r)?r.toFixed(1):String(r)).replace(".",","); };
+$("#exportBank").addEventListener("click",async()=>{
+  try{
+    const D=docx, { Document, Packer, Paragraph, TextRun, AlignmentType, ImageRun, TabStopType, LevelFormat, Tab } = D;
+    const q=parseBank(fullMarkdown);
+    if(!q.mcq.length&&!q.tf.length&&!q.essay.length){ setStatus("⚠️ Chưa có câu nào để xuất (cần các tiêu đề “## Câu …”).","err"); return; }
+    const BLUE="0000FF", RED="FF0000", NAVY="002060", J=AlignmentType.JUSTIFIED;
+    const children=[]; const P=o=>children.push(new Paragraph(o));
+    const school=$("#docSchool").value.trim(), dtitle=$("#docTitle").value.trim(), dyear=$("#docYear").value.trim();
+    if(school) P({ alignment:AlignmentType.CENTER, children:[new TextRun({ text:school.toUpperCase(), bold:true })] });
+    P({ alignment:AlignmentType.CENTER, spacing:{ after:160, line:276 }, children:[new TextRun({ text:dtitle||"ĐỀ KIỂM TRA MÔN LỊCH SỬ", bold:true })] });
+    if(dyear) P({ alignment:AlignmentType.CENTER, spacing:{ after:160, line:276 }, children:[new TextRun({ text:"Năm học "+dyear, bold:true })] });
+    const sp={ line:276 }, stemP=ref=>({ numbering:{ reference:ref, level:0 }, tabStops:[{ type:TabStopType.LEFT, position:992 }], spacing:{ before:120, after:0, line:276 }, alignment:J });
+    const bodyP=(extra={})=>({ alignment:J, spacing:{ after:0, line:276 }, indent:{ left:992 }, ...extra });
+    const splitFigs=arr=>{ const rest=[], list=[]; for(const l of arr){ const fm=l.match(FIG_LINE); if(fm) list.push(fm); else rest.push(l); } return { rest, list }; };
+    const addFigs=async(list)=>{ for(const fm of list){
+      try{ const c=await getCrop(fm[1],fm[2],fm[3].replace(/\s+/g,"")); const k=Math.min(1,420/c.w,320/c.h);
+        P({ alignment:AlignmentType.CENTER, spacing:{ before:60, after:60 }, children:[new ImageRun({ data:c.bytes, type:"png", transformation:{ width:Math.round(c.w*k), height:Math.round(c.h*k) } })] });
+      }catch(_){ P(bodyP({ children:[new TextRun({ text:"[Hình minh họa – không cắt được]", italics:true, color:"999999" })] })); } } };
+    const solOn=$("#docSol").checked;
+    const srcLine=t=>t.replace(/^\*\*Nguồn tham chiếu:\*\*\s*/i,"").trim();
+    const solHead=()=>P({ alignment:AlignmentType.CENTER, keepNext:true, spacing:{ before:120, after:60, line:276 }, children:[new TextRun({ text:"Lời giải", bold:true })] });
+    const solLines=lines=>{ for(const l of lines){
+      if(!l.trim()||/^\s*---+\s*$/.test(l)) continue;
+      const m=l.match(/^(\s*)[*-]\s+(.*)$/); const lv=m?Math.floor(m[1].length/2):0; let t=m?m[2]:l.trim();
+      if(/^\*\*Nguồn tham chiếu:\*\*/i.test(t)){ P(bodyP({ children:mdRuns("Nguồn: "+srcLine(t),{ italics:true }) })); continue; }
+      t=t.replace(/^\*\*Lời giải chi tiết:\*\*\s*/i,"").replace(/^\*\*Lý giải:\*\*\s*/i,"");
+      P(bodyP(lv>=1?{ indent:{ left:992+lv*360 }, children:mdRuns("– "+t) }:{ children:mdRuns(t) }));
+    } };
+    if(q.mcq.length||q.tf.length){
+      P({ alignment:J, spacing:{ before:120, after:120 }, children:[new TextRun({ text:"PHẦN A: TRẮC NGHIỆM", bold:true, color:NAVY })] });
+    }
+    if(q.mcq.length){
+      P({ spacing:{ after:0, line:276 }, children:[new TextRun({ text:`PHẦN I. Câu hỏi trắc nghiệm nhiều phương án lựa chọn (${fmtPts(q.mcq.length*0.25)} điểm): Thí sinh trả lời từ câu 1 đến câu ${q.mcq.length}. Mỗi câu hỏi thí sinh chỉ chọn một phương án.`, bold:true })] });
+      for(const it of q.mcq){
+        const sf=splitFigs(it.stem), stem=sf.rest;
+        P({ ...stemP("c1"), children:mdRuns(stem[0]||"") });
+        for(const extra of stem.slice(1)) P(bodyP({ children:mdRuns(extra) }));
+        await addFigs(sf.list);
+        const L=["A","B","C","D"].filter(k=>it.opts[k]!==undefined);
+        const maxLen=Math.max(0,...L.map(k=>(k+". "+it.opts[k]).length));
+        const per=maxLen<=15?4:maxLen<=24?2:1;
+        const optRuns=k=>{ const ok=k===it.ans; const lab=ok?[new TextRun({ text:k, bold:true, underline:{}, color:BLUE }), new TextRun({ text:". ", bold:true, color:BLUE })]:[new TextRun({ text:k+". ", bold:true, color:BLUE })];
+          return [...lab, ...mdRuns(it.opts[k], ok?{ color:RED }:{})]; };
+        for(let i=0;i<L.length;i+=per){
+          const kids=[]; L.slice(i,i+per).forEach((k,j)=>{ if(j) kids.push(new TextRun({ children:[new Tab()] })); kids.push(...optRuns(k)); });
+          P({ ...bodyP(per===1?{ spacing:{ after:160, line:276 } }:{}), tabStops:[3402,5669,7937].map(pos=>({ type:TabStopType.LEFT, position:pos })), children:kids });
+        }
+        if(solOn){ solHead(); P(bodyP({ children:[new TextRun({ text:"Chọn ", bold:true }), new TextRun({ text:it.ans, bold:true, color:RED }), new TextRun({ text:"." , bold:true })] })); solLines(it.sol); }
+      }
+    }
+    if(q.tf.length){
+      P({ spacing:{ before:120, after:0, line:276 }, children:[new TextRun({ text:`PHẦN II. Câu hỏi trắc nghiệm đúng/sai (${fmtPts(q.tf.length*1)} điểm): Thí sinh trả lời từ câu 1 đến câu ${q.tf.length}. Trong mỗi ý a), b), c), d) ở mỗi câu, thí sinh chọn đúng hoặc sai (đúng 1 ý được 0,1 điểm, đúng 2 ý được 0,25 điểm, đúng 3 ý được 0,5 điểm, đúng cả 4 ý được 1,0 điểm).`, bold:true })] });
+      for(const it of q.tf){
+        const sf=splitFigs(it.pre), pre=sf.rest;
+        P({ ...stemP("c2"), children:mdRuns(pre[0]||"") });
+        await addFigs(sf.list);
+        for(const extra of pre.slice(1)){
+          const cite=/^\(.*\)\s*$/.test(extra);
+          P(bodyP(cite?{ alignment:AlignmentType.RIGHT, children:mdRuns(extra,{ italics:true }) }:{ indent:{ left:992, firstLine:284 }, children:mdRuns(extra,/^[“"]/.test(extra)?{ italics:true }:{}) }));
+        }
+        for(const k of ["a","b","c","d"]){
+          const ok=!!it.tv[k], txt=it.st[k]!==undefined?it.st[k]:"[không đọc được nội dung ý này]";
+          P(bodyP({ children:[new TextRun({ text:k+")", ...(ok?{ underline:{}, color:RED }:{}) }), new TextRun({ text:" " }), ...mdRuns(txt, ok?{ color:RED }:{})] }));
+        }
+        if(solOn){ solHead(); for(const k of ["a","b","c","d"]){ const sl=it.sol[k]; if(!sl) continue; const ok=!!it.tv[k];
+          P(bodyP({ children:[new TextRun({ text:k+") ", bold:true }), new TextRun({ text:ok?"Đúng. ":"Sai. ", bold:true, color:ok?RED:"000000" }), ...mdRuns(sl.r.join(" ")+(sl.src?` (Nguồn: ${sl.src})`:"")) ] })); } }
+      }
+    }
+    if(q.essay.length){
+      P({ alignment:J, spacing:{ before:240, after:120 }, children:[new TextRun({ text:"PHẦN B: TỰ LUẬN", bold:true, color:NAVY })] });
+      for(const it of q.essay){
+        const sf=splitFigs(it.stem), stem=sf.rest;
+        P({ ...stemP("c3"), children:mdRuns(stem[0]||"") });
+        for(const extra of stem.slice(1)) P(bodyP({ children:mdRuns(extra) }));
+        await addFigs(sf.list);
+        if(solOn&&it.key.length){ solHead(); solLines(it.key); }
+      }
+    }
+    const lvl=ref=>({ reference:ref, levels:[{ level:0, format:LevelFormat.DECIMAL, text:"Câu %1:", alignment:AlignmentType.LEFT,
+      style:{ paragraph:{ indent:{ left:992, hanging:992 } }, run:{ bold:true, color:BLUE } } }] });
+    const doc=new Document({
+      numbering:{ config:[lvl("c1"),lvl("c2"),lvl("c3")] },
+      styles:{ default:{ document:{ run:{ font:"Times New Roman", size:24 }, paragraph:{ spacing:{ after:0, line:276 } } } } },
+      sections:[{ properties:{ page:{ size:{ width:11907, height:16840 }, margin:{ top:851, right:851, bottom:851, left:1134 } } }, children }]
+    });
+    const blob=await Packer.toBlob(doc);
+    const url=URL.createObjectURL(blob), a=document.createElement("a"); a.href=url; a.download="Ngan-hang-de-Lich-su.docx"; a.click(); setTimeout(()=>URL.revokeObjectURL(url),1000);
+    setStatus(`⬇ Đã tải Word ngân hàng đề: ${q.mcq.length} câu nhiều lựa chọn, ${q.tf.length} câu đúng/sai${q.essay.length?`, ${q.essay.length} câu tự luận`:""}. Đáp án đúng tô đỏ + gạch chân theo mẫu.`,"ok");
+  }catch(err){ setStatus("❌ Không xuất được: "+err.message,"err"); }
+});
 
 // ---------- Hình minh họa: cắt khung từ ảnh/PDF đề ----------
 const FIG_RE=/\[\[HINH\s+nguon\s*=\s*(\d+)\s+trang\s*=\s*(\d+)\s+khung\s*=\s*([\d.\s,]+?)\s*\]\]/g;
