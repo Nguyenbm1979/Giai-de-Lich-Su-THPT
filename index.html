@@ -212,8 +212,9 @@
             <div><label>Tài khoản Google (số /u/N, bỏ trống = đang dùng)</label><input type="text" id="gwAcc" placeholder="VD: 0, 1, 2…"></div>
             <div><label>Gắn thẻ @ (Gem/kỹ năng chứa SGK, tùy chọn)</label><input type="text" id="gwTag" placeholder="tên thẻ, bỏ trống nếu không có"></div>
           </div>
-          <div class="toolbar" style="margin-top:8px"><button class="btn-primary" id="gwSend" type="button">🚀 Gửi sang Gemini Pro</button><button class="btn-sec" id="gwSave" type="button" title="Ghi nhớ tên kỹ năng, model, tài khoản và tùy chọn gửi từng phần trong trình duyệt này">💾 Lưu kỹ năng</button><button class="btn-sec" id="gwRetry" type="button" hidden>↻ Thử lại</button><button class="btn-sec" id="gwCancel" type="button" hidden>⏹ Hủy</button></div>
+          <div class="toolbar" style="margin-top:8px"><button class="btn-primary" id="gwSend" type="button">🚀 Gửi sang Gemini Pro</button><button class="btn-sec" id="gwDiagBtn" type="button" title="Kiểm tra tiện ích có đang nói chuyện được với tab Gemini không">🩺 Kiểm tra kết nối</button><button class="btn-sec" id="gwSave" type="button" title="Ghi nhớ tên kỹ năng, model, tài khoản và tùy chọn gửi từng phần trong trình duyệt này">💾 Lưu kỹ năng</button><button class="btn-sec" id="gwRetry" type="button" hidden>↻ Thử lại</button><button class="btn-sec" id="gwCancel" type="button" hidden>⏹ Hủy</button></div>
           <div id="gwSaved" class="hint"></div>
+          <div id="gwDiag" class="hint"></div>
           <label style="display:flex;gap:8px;align-items:flex-start;margin-top:6px"><input type="checkbox" id="gwSplit" checked style="width:auto;margin-top:3px"> <span>Gửi <b>từng ảnh / từng trang PDF một</b> (mỗi phần một chat mới, kết quả tự nối lại) — tránh câu trả lời quá dài bị Gemini cắt hoặc xóa</span></label>
           <p class="hint">Trang sẽ gửi ảnh/PDF/Word đề ở mục 3 và prompt, chờ Gemini trả lời rồi tự điền kết quả. Giữ Chrome mở và đừng đóng tab Gemini.</p>
         </div>
@@ -778,7 +779,17 @@ $("#useProResult").addEventListener("click",()=>{
 });
 
 // ---------- Cầu nối tiện ích Chrome → Gemini Pro ----------
+const EXT_VER_MOI="1.1";
 let extReady=false, gwJob=null, gwWatch=null, gwQ=null;   // gwQ = hàng đợi các phần {units:[{tep,them,ten}], i, tag, acc, model}
+function gwDiagText(d){
+  if(d.tabs===-1) return "❌ Tiện ích không trả lời (nền bị tắt hoặc vừa tải lại). Hãy <b>tải lại trang (Cmd+Shift+R)</b> rồi thử lại.";
+  const ago=d.poll_ago, j=d.job;
+  if(!d.tabs) return "❌ Chưa có tab <b>gemini.google.com</b> nào mở. Hãy mở Gemini (đăng nhập tài khoản Pro) rồi bấm Gửi lại.";
+  if(ago==null || ago>10000) return `❌ Có ${d.tabs} tab Gemini nhưng <b>chưa tab nào chạy tiện ích</b>${ago==null?"":` (lần cuối ${Math.round(ago/1000)} giây trước)`}. Làm theo thứ tự: <b>(1)</b> tải lại tab Gemini (Cmd+R); <b>(2)</b> vào chrome://extensions → tiện ích → <b>Chi tiết</b> → mục <b>“Truy cập trang web”</b>, chọn <b>“Trên tất cả các trang web”</b> (hoặc thêm gemini.google.com) và chắc chắn tiện ích đang bật; <b>(3)</b> bấm biểu tượng tải lại của tiện ích rồi tải lại cả hai tab.`;
+  if(j&&j.nhan&&!j.xong) return "✅ Tab Gemini đã nhận việc và đang xử lý nhưng chưa báo tiến độ — có thể đang kẹt ở bước đính kèm hoặc chọn model. Mở tab Gemini, nhấn Cmd+Option+J và gửi tôi các dòng <code>[giai-de-su]</code>.";
+  if(j&&!j.nhan) return "⚠️ Tab Gemini đang hỏi việc nhưng chưa nhận được việc này. Bấm Hủy rồi Gửi lại.";
+  return "✅ Tiện ích đang kết nối tốt với tab Gemini (đang chờ việc).";
+}
 function gwStopWatch(){ if(gwWatch){ clearTimeout(gwWatch); gwWatch=null; } }
 const toExt=o=>window.postMessage({ src:"gds-page", ...o },"*");
 function gwBusy(b){ $("#gwSend").disabled=b; $("#gwCancel").hidden=!b; if(b) $("#gwRetry").hidden=true; if(!b) gwStopWatch(); }
@@ -797,13 +808,14 @@ function gwSendUnit(){
   gwJob={ id:"j"+Date.now()+"_"+q.i };
   gwBusy(true);
   setStatus('<span class="spin"></span> Đang gửi'+partTag(q.i,n,u.ten)+"…");
-  gwWatch=setTimeout(()=>{ if(gwJob) setStatus("⚠️ Sau 20 giây tab Gemini chưa phản hồi. Hãy <b>tải lại tab Gemini (Cmd+R / F5)</b> — tab mở trước khi cài tiện ích thì chưa nhận được việc. Nếu đã làm rồi, bấm Hủy và gửi lại.","err"); },20000);
+  gwWatch=setTimeout(()=>{ if(gwJob) toExt({loai:"trang-thai",tu_dong:true}); },20000);
   toExt({ loai:"giao", job:{ id:gwJob.id, model:q.model, cau_lenh:cau, tep:u.tep, ky_nang:q.tag||"", tai_khoan:q.acc } });
 }
 window.addEventListener("message",ev=>{
   if(ev.source!==window||!ev.data||ev.data.src!=="gds-ext") return;
   const d=ev.data;
-  if(d.loai==="pong"){ extReady=true; $("#extState").textContent="✅ đã nhận tiện ích (v"+d.ver+")"; $("#extForm").hidden=false; $("#extMiss").hidden=true; }
+  if(d.loai==="pong"){ extReady=true; $("#extState").textContent="✅ đã nhận tiện ích (v"+d.ver+")"+(d.ver!==EXT_VER_MOI?" ⚠️ bản cũ — hãy thay thư mục tiện ích bằng bản mới (v"+EXT_VER_MOI+") rồi tải lại tiện ích":""); $("#extForm").hidden=false; $("#extMiss").hidden=true; }
+  else if(d.loai==="trang-thai"){ const t=gwDiagText(d); if(d.tu_dong){ if(gwJob) setStatus("⚠️ Sau 20 giây chưa có tiến độ. "+t,"err"); } else { $("#gwDiag").style.color=t.startsWith("✅")?"#1a7f4b":"#b26a00"; $("#gwDiag").innerHTML=t; } }
   else if(d.loai==="het-han"){ extReady=false; $("#extState").textContent="⚠️ tiện ích vừa được tải lại"; if(gwJob||gwQ) gwFail("⚠️ Tiện ích Chrome vừa được tải lại nên trang này mất liên lạc. Hãy <b>tải lại trang (Cmd+Shift+R)</b> và tải lại tab Gemini, rồi bấm Gửi lại."); else setStatus("⚠️ Tiện ích vừa được tải lại. Hãy tải lại trang (Cmd+Shift+R) rồi tải lại tab Gemini.","err"); }
   else if(d.loai==="da-giao"){ if(!d.ok) gwFail("❌ "+(d.loi||"Không giao được việc cho tiện ích")); }
   else if(d.loai==="tien-do"&&gwJob){ gwStopWatch(); const q=gwQ; setStatus('<span class="spin"></span> '+(q?`<b>${q.i+1}/${q.units.length}</b> `:"")+String(d.s||"").replace(/</g,"&lt;")); }
@@ -850,6 +862,7 @@ $("#gwSave").addEventListener("click",()=>{
   catch(_){ $("#gwSaved").style.color="#c0392b"; $("#gwSaved").textContent="❌ Trình duyệt không cho lưu (chế độ riêng tư?)."; }
 });
 gwLoadSettings();
+$("#gwDiagBtn").addEventListener("click",()=>{ $("#gwDiag").style.color="#6b7686"; $("#gwDiag").textContent="Đang kiểm tra…"; toExt({loai:"trang-thai"}); });
 const canvasB64=(c,q=0.92)=>c.toDataURL("image/jpeg",q).split(",")[1];
 // Tách đề thành các phần: mỗi ảnh = 1 phần, mỗi trang PDF = 1 phần (dựng bằng pdf.js), Word = 1 phần
 async function gwBuildUnits(split){

@@ -20,3 +20,6 @@ Cho phép trang **Giải đề Lịch sử THPT** tự gửi đề sang **gemini
 
 ## Lưu kỹ năng
 Bấm **💾 Lưu kỹ năng** để trang nhớ tên thẻ `@kỹ năng`, model, tài khoản và tùy chọn gửi từng phần trong trình duyệt này; lần sau mở trang tự điền lại.
+
+## Khi không chạy: nút 🩺 Kiểm tra kết nối (v1.1)
+Ở phần Gemini Pro của trang có nút **🩺 Kiểm tra kết nối**; sau 20 giây không có tiến độ trang cũng tự chẩn đoán. Kết quả cho biết: chưa có tab Gemini, có tab nhưng tiện ích chưa chạy trong đó (cách xử lý: tải lại tab Gemini; `chrome://extensions` → Chi tiết → **Truy cập trang web** = "Trên tất cả các trang web"), hay tab đã nhận việc nhưng kẹt. Trang cũng cảnh báo nếu thư mục tiện ích bạn nạp là bản cũ (khác v1.1).

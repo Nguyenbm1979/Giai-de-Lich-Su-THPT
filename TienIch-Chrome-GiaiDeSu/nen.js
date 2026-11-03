@@ -1,5 +1,6 @@
 // Nền (service worker): giữ MỘT việc hiện tại, giao cho tab Gemini, trả kết quả về tab trang Giải đề.
 "use strict";
+let lastPoll = 0, lastPollTab = null;   // lần gần nhất một tab Gemini hỏi việc (để chẩn đoán)
 let cur = null;   // {id, job, pageTab, nhan, huy, xong, beat, t0}
 const GEM = "https://gemini.google.com/";
 const goc = n => n ? `${GEM}u/${n}/` : GEM;
@@ -22,7 +23,13 @@ chrome.runtime.onMessage.addListener((tin, sender, traLoi) => {
       return {ok: true};
     }
     if (tin.loai === "huy") { if (cur) cur.huy = true; return {ok: true}; }
+    if (tin.loai === "trang-thai") {                // trang Giải đề hỏi: tab Gemini có đang chạy tiện ích không?
+      const tabs = await chrome.tabs.query({url: GEM + "*"});
+      return {tabs: tabs.length, poll_ago: lastPoll ? Date.now() - lastPoll : null,
+              job: cur ? {nhan: cur.nhan, xong: cur.xong, huy: cur.huy, tuoi: Date.now() - cur.t0} : null};
+    }
     if (tin.loai === "lay") {                       // tab Gemini hỏi có việc không
+      lastPoll = Date.now(); lastPollTab = sender.tab ? sender.tab.id : null;
       if (!cur || cur.xong || cur.huy) return null;
       // tab nhận việc im lặng quá 75s (đóng/treo) -> cho tab khác nhận lại
       if (cur.nhan && Date.now() - cur.beat > 75000) cur.nhan = false;

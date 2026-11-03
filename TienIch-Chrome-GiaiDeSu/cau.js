@@ -18,6 +18,10 @@ window.addEventListener("message", ev => {
         .then(r => ra({loai: "da-giao", ...(r || {ok: false, loi: "tiện ích không phản hồi"})}))
         .catch(e => ra({loai: "da-giao", ok: false, loi: String(e && e.message || e)}));
     }
+    if (d.loai === "trang-thai")
+      chrome.runtime.sendMessage({loai: "trang-thai"})
+        .then(r => ra({loai: "trang-thai", tu_dong: !!d.tu_dong, ...(r || {tabs: -1})}))
+        .catch(() => ra({loai: "trang-thai", tu_dong: !!d.tu_dong, tabs: -1}));
     if (d.loai === "huy") chrome.runtime.sendMessage({loai: "huy"}).catch(() => {});
   } catch (e) {
     if (!conSong()) return hetHan();
