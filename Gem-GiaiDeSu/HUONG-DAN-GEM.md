@@ -1,24 +1,28 @@
-# Gem "GiaiDeSu" cho Gemini (gói Pro)
+# Kỹ năng (Skill) "giaidesu" cho Gemini (gói Pro)
 
-Gem là trợ lý tùy chỉnh của Gemini: có sẵn **Hướng dẫn** và **Kiến thức (file SGK)** nên mỗi lần giải đề bạn không phải dán lại prompt hay gửi lại sách.
+Kỹ năng là mục tùy chỉnh của Gemini có sẵn **Chỉ dẫn** và **tệp SGK**, nên mỗi lần giải đề bạn không phải dán lại prompt hay gửi lại sách. (Nếu tài khoản của bạn dùng **Gem** thay cho Kỹ năng thì làm tương tự: Tên, Hướng dẫn, Kiến thức.)
 
 ## Cách tạo (1 lần)
-1. Vào https://gemini.google.com → thanh bên → **Gem** (Trình quản lý Gem) → **Gem mới**.
-2. **Tên:** `GiaiDeSu` (viết liền, không dấu, để gõ `@GiaiDeSu` cho dễ).
-3. **Hướng dẫn:** dán toàn bộ khối văn bản trong mục "Hướng dẫn cho Gem" bên dưới.
-4. **Kiến thức:** thêm các file PDF SGK Lịch sử 10, 11, 12 (bộ Kết nối tri thức) và Chương trình GDPT 2018 môn Lịch sử (nếu giới hạn số file/dung lượng hiện hành cho phép; nếu không, chỉ thêm sách lớp thường ra đề).
-5. Lưu Gem. Thử: mở Gem, đính kèm ảnh một đề, gửi "Hãy giải chi tiết đề thi này".
+1. Mở https://gemini.google.com/customize/skills (hoặc thanh bên → **Hiện thêm** → **Kỹ năng**) → **Tạo**.
+2. **Tên:** `giaidesu` (viết thường, liền, không dấu — tên này phải trùng từng chữ với ô “Gắn thẻ @” trên trang).
+3. **Mô tả** (bắt buộc), dán:
+```
+Giải đề thi môn Lịch sử THPT (trắc nghiệm nhiều lựa chọn, đúng/sai, tự luận) từ ảnh hoặc PDF đề: chép đầy đủ đề bài, giải chi tiết từng câu bám sát SGK Lịch sử 10, 11, 12 (Kết nối tri thức) và Chương trình GDPT 2018, ghi rõ nguồn tham chiếu.
+```
+4. **Chỉ dẫn:** dán toàn bộ khối trong mục “Chỉ dẫn” ở cuối file này.
+5. **Thêm tệp:** thêm PDF SGK Lịch sử 10, 11, 12 (Kết nối tri thức) và Chương trình GDPT 2018 môn Lịch sử (nếu giới hạn hiện hành cho phép; nếu không, chỉ thêm sách lớp thường ra đề).
+6. Bấm **Tạo**. Thử: gõ `@giaidesu`, đính kèm ảnh một đề, gửi “Hãy giải chi tiết đề thi này”.
 
 ## Dùng cùng trang Giải đề
-- Ở trang, mục 4 → **Dùng gói Gemini Pro** → ô **Gắn thẻ @** điền đúng tên Gem: `GiaiDeSu`. Tiện ích sẽ gõ `@GiaiDeSu` vào cuối tin nhắn để Gemini dùng Gem này.
-- Nếu không thấy thẻ (ô báo "không tìm thấy thẻ @…"), kiểm tra tên Gem trùng khớp từng chữ, hoặc để trống ô thẻ và tự mở Gem trước khi bấm gửi.
-- Định dạng đầu ra của hướng dẫn dưới đây **khớp với bộ đọc của trang** (`## Câu N`, `Đáp án chọn`, `Ý a)`…), nên đối chiếu đáp án và xuất Word chạy đúng. Đừng sửa các tiêu đề này.
+- Mục 4 → **Dùng gói Gemini Pro** → ô **Gắn thẻ @** điền đúng `giaidesu` (phân biệt hoa/thường). Tiện ích sẽ gõ `@giaidesu` vào cuối tin nhắn.
+- Nếu trang báo “không tìm thấy thẻ”, kiểm tra tên Kỹ năng trùng từng chữ và đã tạo xong.
+- Định dạng đầu ra bên dưới **khớp với bộ đọc của trang** (`## Câu N`, `Đáp án chọn`, `Ý a)`…); đừng sửa các tiêu đề này.
 
-## Hướng dẫn cho Gem (dán nguyên khối dưới đây)
+## Chỉ dẫn (dán nguyên khối dưới đây)
 
 ```
 Bạn là một chuyên gia giáo dục và giáo viên chấm thi môn Lịch sử cấp THPT, nắm vững Chương trình GDPT 2018.
-Bạn đã được cung cấp các tài liệu trong mục Kiến thức (Knowledge) của Gem này làm bộ nhớ cốt lõi, bao gồm: SGK Lịch sử 10, 11, 12 (bộ Kết nối tri thức) và Chương trình GDPT 2018.
+Bạn đã được cung cấp các tài liệu trong các tệp đính kèm của kỹ năng này làm bộ nhớ cốt lõi, bao gồm: SGK Lịch sử 10, 11, 12 (bộ Kết nối tri thức) và Chương trình GDPT 2018.
 
 NHIỆM VỤ:
 Đọc file ảnh/PDF chứa câu hỏi đề thi môn Lịch sử do tôi đính kèm trong tin nhắn. Nhận diện chính xác dạng câu hỏi và cung cấp lời giải chi tiết theo đúng định dạng quy định.
@@ -72,4 +76,4 @@ D. …
 ## Mẹo
 - Đề dài bị cắt giữa chừng: nhắn thêm "Tiếp tục giải các câu còn lại, không lặp lại câu đã giải", rồi dán đợt sau vào trang với tùy chọn **Nối thêm**.
 - Gemini web không trả tọa độ hình nên trang không tự cắt hình minh họa ở chế độ này; đề có hình nên kiểm tra lại các câu đó.
-- Giao diện Gem có thể được Google đổi tên/vị trí; nếu khác mô tả, tìm mục "Gem" hoặc "Kỹ năng/Skills" trong thanh bên.
+- Giao diện Gemini có thể được Google đổi tên/vị trí; nếu khác mô tả, tìm mục "Kỹ năng/Skills" hoặc "Gem" trong thanh bên.
