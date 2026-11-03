@@ -776,15 +776,16 @@ $("#useProResult").addEventListener("click",()=>{
 });
 
 // ---------- Cầu nối tiện ích Chrome → Gemini Pro ----------
-let extReady=false, gwJob=null;
+let extReady=false, gwJob=null, gwWatch=null;
+function gwStopWatch(){ if(gwWatch){ clearTimeout(gwWatch); gwWatch=null; } }
 const toExt=o=>window.postMessage({ src:"gds-page", ...o },"*");
-function gwBusy(b){ $("#gwSend").disabled=b; $("#gwCancel").hidden=!b; }
+function gwBusy(b){ $("#gwSend").disabled=b; $("#gwCancel").hidden=!b; if(!b) gwStopWatch(); }
 window.addEventListener("message",ev=>{
   if(ev.source!==window||!ev.data||ev.data.src!=="gds-ext") return;
   const d=ev.data;
   if(d.loai==="pong"){ extReady=true; $("#extState").textContent="✅ đã nhận tiện ích (v"+d.ver+")"; $("#extForm").hidden=false; $("#extMiss").hidden=true; }
   else if(d.loai==="da-giao"){ if(!d.ok){ gwBusy(false); gwJob=null; setStatus("❌ "+(d.loi||"Không giao được việc cho tiện ích"),"err"); } else setStatus('<span class="spin"></span> Đã giao cho tiện ích, đang mở Gemini…'); }
-  else if(d.loai==="tien-do"&&gwJob){ setStatus('<span class="spin"></span> '+String(d.s||"").replace(/</g,"&lt;")); }
+  else if(d.loai==="tien-do"&&gwJob){ gwStopWatch(); setStatus('<span class="spin"></span> '+String(d.s||"").replace(/</g,"&lt;")); }
   else if(d.loai==="ket-qua"&&gwJob){
     const du=d.du||{}; gwBusy(false); gwJob=null;
     if(du.khong_co_tai_khoan) return setStatus("❌ Chrome chưa đăng nhập tài khoản Google thứ "+du.tai_khoan+". Kiểm tra số /u/N.","err");
@@ -818,6 +819,7 @@ $("#gwSend").addEventListener("click",async()=>{
     const acc=$("#gwAcc").value.trim();
     gwJob={ id:"j"+Date.now() };
     gwBusy(true);
+    gwWatch=setTimeout(()=>{ if(gwJob) setStatus("⚠️ Sau 20 giây tab Gemini chưa phản hồi. Hãy <b>tải lại tab Gemini (Cmd+R / F5)</b> — tab mở trước khi cài tiện ích thì chưa nhận được việc. Nếu đã làm rồi, bấm Hủy và gửi lại.","err"); },20000);
     toExt({ loai:"giao", job:{ id:gwJob.id, model:$("#gwModel").value, cau_lenh:cau, tep, ky_nang:tag||"", tai_khoan:acc===""?null:Number(acc) } });
   }catch(err){ gwBusy(false); gwJob=null; setStatus("❌ "+err.message,"err"); }
 });
