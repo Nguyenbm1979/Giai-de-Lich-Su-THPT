@@ -798,6 +798,11 @@ window.addEventListener("message",ev=>{
 });
 toExt({loai:"ping"}); setTimeout(()=>toExt({loai:"ping"}),1200);
 setTimeout(()=>{ if(!extReady){ $("#extState").textContent="chưa cài"; $("#extMiss").hidden=false; } },2500);
+// Có thẻ @kỹ năng: quy tắc + khuôn định dạng đã nằm trong kỹ năng -> chỉ gửi yêu cầu ngắn
+function buildShortPrompt(){
+  const rg=$("#qRange").value.trim();
+  return "YÊU CẦU: "+($("#userMsg").value.trim()||"Hãy giải chi tiết đề thi này.")+(rg?` CHỈ giải các câu sau (giữ nguyên số câu của đề): ${rg}.`:"")+"\nĐề thi là các tệp/ảnh đính kèm trong tin nhắn này.";
+}
 function buildPromptText(){
   const rg=$("#qRange").value.trim();
   return $("#sysPrompt").value+"\n\n---\nYÊU CẦU: "+($("#userMsg").value.trim()||"Hãy giải chi tiết đề thi này.")+(rg?` CHỈ giải các câu sau (giữ nguyên số câu của đề): ${rg}.`:"")+"\nĐề thi là các tệp/ảnh đính kèm trong tin nhắn này.";
@@ -814,7 +819,7 @@ $("#gwSend").addEventListener("click",async()=>{
       }else if(e.file) tep.push({ ten:e.name, type:e.mimeType, b64:await fileToBase64(e.file) });
     }
     const tag=$("#gwTag").value.trim().replace(/^@/,"");
-    let cau=buildPromptText()+them;
+    let cau=(tag?buildShortPrompt():buildPromptText())+them;
     if(!tag) cau+="\n\nGHI CHÚ: tin nhắn này không đính kèm SGK. Hãy dựa vào kiến thức SGK Lịch sử (Kết nối tri thức) và chương trình GDPT 2018 mà bạn nắm chắc; ghi nguồn là tên bài/chủ đề tương ứng và nói rõ nếu không chắc chắn.";
     const acc=$("#gwAcc").value.trim();
     gwJob={ id:"j"+Date.now() };
