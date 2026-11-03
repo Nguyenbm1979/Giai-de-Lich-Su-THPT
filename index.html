@@ -804,6 +804,7 @@ window.addEventListener("message",ev=>{
   if(ev.source!==window||!ev.data||ev.data.src!=="gds-ext") return;
   const d=ev.data;
   if(d.loai==="pong"){ extReady=true; $("#extState").textContent="✅ đã nhận tiện ích (v"+d.ver+")"; $("#extForm").hidden=false; $("#extMiss").hidden=true; }
+  else if(d.loai==="het-han"){ extReady=false; $("#extState").textContent="⚠️ tiện ích vừa được tải lại"; if(gwJob||gwQ) gwFail("⚠️ Tiện ích Chrome vừa được tải lại nên trang này mất liên lạc. Hãy <b>tải lại trang (Cmd+Shift+R)</b> và tải lại tab Gemini, rồi bấm Gửi lại."); else setStatus("⚠️ Tiện ích vừa được tải lại. Hãy tải lại trang (Cmd+Shift+R) rồi tải lại tab Gemini.","err"); }
   else if(d.loai==="da-giao"){ if(!d.ok) gwFail("❌ "+(d.loi||"Không giao được việc cho tiện ích")); }
   else if(d.loai==="tien-do"&&gwJob){ gwStopWatch(); const q=gwQ; setStatus('<span class="spin"></span> '+(q?`<b>${q.i+1}/${q.units.length}</b> `:"")+String(d.s||"").replace(/</g,"&lt;")); }
   else if(d.loai==="ket-qua"&&gwJob){
