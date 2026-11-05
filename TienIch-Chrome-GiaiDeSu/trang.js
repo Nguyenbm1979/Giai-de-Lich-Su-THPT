@@ -260,6 +260,10 @@ async function lamViec(v) {
     document.execCommand("insertText", false, v.cau_lenh);
     await ngu(800);
     if (v.ky_nang && !await ganKyNang(v.ky_nang)) return ketQua({khong_thay_ky_nang: true, ky_nang: v.ky_nang});
+    if (v.khong_gui) {   // chế độ "tôi tự bấm Gửi": đã dán ảnh + câu lệnh, dừng ở đây để người dùng tự gửi
+      log("Đã dán ảnh + câu lệnh vào Gemini — bạn hãy bấm Gửi trong tab này, đợi Gemini trả lời xong, bấm Copy rồi dán vào trang Giải đề.");
+      return ketQua({chuan_bi: true});
+    }
     const nut = await cho(() => { const n = tim(NUT_GUI); return n && !n.disabled && n.getAttribute("aria-disabled") !== "true" ? n : null; }, 25000);
     if (!nut) return ketQua({loi: "nút Gửi không sáng (có thể tệp còn đang tải hoặc Gemini chặn)"});
     const soCu = traLois().length;

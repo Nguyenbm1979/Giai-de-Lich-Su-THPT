@@ -44,7 +44,12 @@ chrome.runtime.onMessage.addListener((tin, sender, traLoi) => {
     if (tin.loai === "nhat-ky") { if (cur) toPage(cur.pageTab, {loai: "tien-do", s: du.s}); return true; }
     if (tin.loai === "ket-qua") {
       if (!cur || cur.id !== du.id) return false;
-      cur.xong = true; toPage(cur.pageTab, {loai: "ket-qua", du}); return true;
+      cur.xong = true; toPage(cur.pageTab, {loai: "ket-qua", du});
+      if (du.chuan_bi && sender.tab) {              // đưa tab Gemini lên trước để người dùng bấm Gửi
+        chrome.tabs.update(sender.tab.id, {active: true}).catch(() => {});
+        chrome.windows.update(sender.tab.windowId, {focused: true}).catch(() => {});
+      }
+      return true;
     }
     return null;
   })().then(traLoi).catch(() => traLoi(null));

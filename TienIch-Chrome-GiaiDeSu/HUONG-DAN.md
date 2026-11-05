@@ -23,3 +23,6 @@ Bấm **💾 Lưu kỹ năng** để trang nhớ tên thẻ `@kỹ năng`, model
 
 ## Khi không chạy: nút 🩺 Kiểm tra kết nối (v1.1)
 Ở phần Gemini Pro của trang có nút **🩺 Kiểm tra kết nối**; sau 20 giây không có tiến độ trang cũng tự chẩn đoán. Kết quả cho biết: chưa có tab Gemini, có tab nhưng tiện ích chưa chạy trong đó (cách xử lý: tải lại tab Gemini; `chrome://extensions` → Chi tiết → **Truy cập trang web** = "Trên tất cả các trang web"), hay tab đã nhận việc nhưng kẹt. Trang cũng cảnh báo nếu thư mục tiện ích bạn nạp là bản cũ (khác v1.1).
+
+## Phần Gemini không trả kết quả (v1.2)
+Khi một ảnh/trang bị Gemini bỏ trống hoặc từ chối, trang tự thử lại 1 lần rồi đánh dấu phần đó và **vẫn giải tiếp các phần còn lại**. Cuối cùng có khung đỏ liệt kê các phần lỗi, mỗi phần có: **🔁 Gửi lại tự động**, **📨 Gửi sang Gemini (tôi tự bấm Gửi)** — tiện ích dán sẵn ảnh + câu lệnh vào Gemini và đưa tab Gemini lên trước, bạn tự bấm Gửi, chờ xong bấm Copy rồi dán vào ô của phần đó — cùng **📋 Sao chép câu lệnh** và **💾 Tải ảnh** nếu muốn làm hoàn toàn bằng tay. Kết quả dán vào được xếp đúng vị trí của phần đó.
