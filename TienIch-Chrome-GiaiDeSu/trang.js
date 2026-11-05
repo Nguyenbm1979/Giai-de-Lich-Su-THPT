@@ -182,11 +182,15 @@ function htmlToMd(root) {
   const inl = n => [...n.childNodes].map(inlNode).join("");
   const list = (ul, nho) => {
     const ol = ul.tagName === "OL"; let i = 0, s = "";
+    // danh sách đánh chữ cái (a, b, c, d / A, B, C, D): giữ đúng nhãn thay vì đổi thành 1, 2, 3, 4
+    let kieu = ""; try { kieu = getComputedStyle(ul).listStyleType || ""; } catch (e) { kieu = ""; }
+    const thuong = /lower-(alpha|latin)/.test(kieu), hoa = /upper-(alpha|latin)/.test(kieu);
     for (const li of ul.children) {
       if (li.tagName !== "LI") continue;
       i++;
       const text = [...li.childNodes].filter(c => !(c.nodeType === 1 && /^(UL|OL)$/.test(c.tagName))).map(c => c.nodeType === 1 && c.tagName === "P" ? inl(c) : inlNode(c)).join("").trim();
-      s += "  ".repeat(nho) + (ol ? i + ". " : "* ") + text + "\n";
+      const nhan = thuong ? String.fromCharCode(96 + i) + ") " : hoa ? String.fromCharCode(64 + i) + ". " : ol ? i + ". " : "* ";
+      s += "  ".repeat(nho) + nhan + text + "\n";
       [...li.children].filter(c => /^(UL|OL)$/.test(c.tagName)).forEach(c => { s += list(c, nho + 1); });
     }
     return s;

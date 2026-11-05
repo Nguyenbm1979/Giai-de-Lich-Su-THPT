@@ -821,7 +821,7 @@ $("#useProResult").addEventListener("click",()=>{
 });
 
 // ---------- Cầu nối tiện ích Chrome → Gemini Pro ----------
-const EXT_VER_MOI="1.2";
+const EXT_VER_MOI="1.3";
 let extReady=false, extVer="", gwJob=null, gwWatch=null, gwQ=null;   // gwQ = {units:[{tep,them,ten,status,tries,reason}], results:[], i, tag, acc, model}
 function gwDiagText(d){
   if(d.tabs===-1) return "❌ Tiện ích không trả lời (nền bị tắt hoặc vừa tải lại). Hãy <b>tải lại trang (Cmd+Shift+R)</b> rồi thử lại.";
@@ -1236,6 +1236,41 @@ function splitInlineOptions(l){
   }
   return [l];
 }
+// Ý đúng/sai a) b) c) d) nằm chung một dòng: tách theo thứ tự a→b→c→d
+function splitInlineStatements(l){
+  const reA=/(^|\s)(?:\*\*)?\(?a\)(?:\*\*)?\s/g; let a;
+  while((a=reA.exec(l))){
+    const startA=a.index+(a[1]?1:0); let from=reA.lastIndex; const pos=[startA]; let ok=true;
+    for(const k of ["b","c","d"]){
+      const re=new RegExp("\\s(?:\\*\\*)?\\(?"+k+"\\)(?:\\*\\*)?\\s","g"); re.lastIndex=from; const r=re.exec(l);
+      if(!r){ ok=false; break; } pos.push(r.index+1); from=r.index+r[0].length;
+    }
+    if(ok){ const out=[]; if(l.slice(0,startA).trim()) out.push(l.slice(0,startA).trim());
+      pos.forEach((st,i)=>out.push(l.slice(st,pos[i+1]!==undefined?pos[i+1]:l.length).trim())); return out; }
+  }
+  return [l];
+}
+// Tìm 4 ý a-d trong phần đề chép lại: thử nhiều kiểu đánh dấu (a) (a) a. a: a/ , chữ in hoa, 1-4); dòng nối tiếp được ghép vào ý trước
+function extractStatements(lines){
+  const styles=[
+    { re:/^\s*(?:[*•·–-]\s*)?(?:\*\*)?\(?([a-d])\)(?:\*\*)?\s*(.*)$/, key:c=>c },
+    { re:/^\s*(?:[*•·–-]\s*)?(?:\*\*)?\(?([a-dA-D])(?:\)|[.:/])(?:\*\*)?\s+(.*)$/, key:c=>c.toLowerCase() },
+    { re:/^\s*(?:[*•·–-]\s*)?\(?([1-4])[.)]\s+(.*)$/, key:c=>"abcd"[+c-1] }
+  ];
+  let best=null;
+  for(const stl of styles){
+    const st={}, pre=[]; let last=null, n=0;
+    for(const l of lines){
+      const m=l.match(stl.re); const k=m?stl.key(m[1]):null;
+      if(m&&k&&!st[k]&&(k==="a"||st[String.fromCharCode(k.charCodeAt(0)-1)]!==undefined)){ st[k]=m[2].trim(); last=k; n++; continue; }
+      if(last){ if(!/^\s*\(.*\)\s*$/.test(l)) st[last]+=" "+cleanMd(l); }        // dòng nối tiếp ý trước
+      else pre.push(cleanMd(l));
+    }
+    if(!best||n>best.n) best={ st, pre, n };
+    if(n===4) break;
+  }
+  return best;
+}
 function parseBank(md){
   md=md.replace(/\[\[PHAN_TRONG[^\]]*\]\]/g,"");
   const res={ mcq:[], tf:[], essay:[] };
@@ -1256,20 +1291,19 @@ function parseBank(md){
       }
       res.mcq.push({ stem, opts, ans:ans[1].toUpperCase(), sol });
     }else if(verd.length){
-      const cut=body.search(/^\s*[*-]\s*\*\*Ý\s*a\)\*\*/m);
-      const copied=(cut>=0?body.slice(0,cut):body).split("\n").filter(l=>l.trim()&&!/^\s*---+\s*$/.test(l));
-      const stRe=/^\s*(?:[*-]\s*)?(?:\*\*)?([a-d])\)(?:\*\*)?\s*(.*)$/; const pre=[], st={};
-      for(const l of copied){ const m=l.match(stRe); if(m&&!st[m[1]]) st[m[1]]=m[2].trim(); else if(!Object.keys(st).length) pre.push(cleanMd(l)); }
+      const cut=body.lastIndexOf("\n",verd[0].index)+1;                      // đầu dòng chứa "**Ý a)**" đầu tiên
+      const copied=body.slice(0,cut).split("\n").filter(l=>l.trim()&&!/^\s*---+\s*$/.test(l)).flatMap(splitInlineStatements);
+      const ex=extractStatements(copied), st=ex.st, pre=ex.pre;
       const tv={}; verd.forEach(m=>{ tv[m[1].toLowerCase()]=/đ/i.test(m[2][0]); });
       const sol={}; let cur=null;
-      for(const l of (cut>=0?body.slice(cut):"").split("\n")){
+      for(const l of body.slice(cut).split("\n")){
         const h=l.match(/^\s*[*-]\s*\*\*Ý\s*([a-d])\)\*\*/); if(h){ cur=h[1]; sol[cur]={ r:[], src:"" }; continue; }
         if(!cur||!l.trim()||/^\s*---+\s*$/.test(l)) continue;
         const t=l.replace(/^\s*[*-]\s*/,"");
         if(/^\*\*Nguồn tham chiếu:\*\*/i.test(t)) sol[cur].src=t.replace(/^\*\*Nguồn tham chiếu:\*\*\s*/i,"").trim();
         else sol[cur].r.push(t.replace(/^\*\*Lý giải:\*\*\s*/i,"").trim());
       }
-      res.tf.push({ pre, st, tv, sol });
+      res.tf.push({ pre, st, tv, sol, nst:ex.n, raw:copied });
     }else{
       const g=lines.findIndex(l=>/Gợi ý đáp án/i.test(l));
       const stem=(g>=0?lines.slice(0,g):lines).map(cleanMd).filter(Boolean);
@@ -1314,7 +1348,7 @@ $("#exportBank").addEventListener("click",async()=>{
       try{ const c=await getCrop(fm[1],fm[2],fm[3].replace(/\s+/g,"")); const k=Math.min(1,420/c.w,320/c.h);
         P({ alignment:AlignmentType.CENTER, spacing:{ before:60, after:60 }, children:[new ImageRun({ data:c.bytes, type:"png", transformation:{ width:Math.round(c.w*k), height:Math.round(c.h*k) } })] });
       }catch(_){ P(bodyP({ children:[new TextRun({ text:"[Hình minh họa – không cắt được]", italics:true, color:"999999" })] })); } } };
-    const solOn=$("#docSol").checked;
+    const solOn=$("#docSol").checked; const tfWarn=[]; const counter={ tf:0 };
     const srcLine=t=>t.replace(/^\*\*Nguồn tham chiếu:\*\*\s*/i,"").trim();
     const solHead=()=>P({ alignment:AlignmentType.CENTER, keepNext:true, spacing:{ before:120, after:60, line:276 }, children:[new TextRun({ text:"Lời giải", bold:true })] });
     const solLines=lines=>{ for(const l of lines){
@@ -1358,8 +1392,10 @@ $("#exportBank").addEventListener("click",async()=>{
           const cite=/^\(.*\)\s*$/.test(extra);
           P(bodyP(cite?{ alignment:AlignmentType.RIGHT, children:mdRuns(extra,{ italics:true }) }:{ indent:{ left:IND, firstLine:284 }, children:mdRuns(extra,/^[“"]/.test(extra)?{ italics:true }:{}) }));
         }
+        if(it.nst<4) tfWarn.push(counter.tf+1);          // không tách đủ 4 ý: phần chưa tách vẫn nằm nguyên văn trong các đoạn phía trên
+        counter.tf++;
         for(const k of ["a","b","c","d"]){
-          const ok=!!it.tv[k], txt=it.st[k]!==undefined?it.st[k]:"[không đọc được nội dung ý này]";
+          const ok=!!it.tv[k], txt=it.st[k]!==undefined?it.st[k]:(it.nst===0?"[chưa tách được nội dung ý này — xem nguyên văn đề ở trên]":"[không đọc được nội dung ý này]");
           P(bodyP({ children:[new TextRun({ text:k+")", ...(ok?{ underline:{}, color:RED }:{}) }), new TextRun({ text:" " }), ...mdRuns(txt, ok?{ color:RED }:{})] }));
         }
         if(solOn){ solHead(); for(const k of ["a","b","c","d"]){ const sl=it.sol[k]; if(!sl) continue; const ok=!!it.tv[k];
@@ -1385,7 +1421,7 @@ $("#exportBank").addEventListener("click",async()=>{
     });
     const blob=await Packer.toBlob(doc);
     const url=URL.createObjectURL(blob), a=document.createElement("a"); a.href=url; a.download="Ngan-hang-de-Lich-su.docx"; a.click(); setTimeout(()=>URL.revokeObjectURL(url),1000);
-    setStatus(`⬇ Đã tải Word ngân hàng đề: ${q.mcq.length} câu nhiều lựa chọn, ${q.tf.length} câu đúng/sai${q.essay.length?`, ${q.essay.length} câu tự luận`:""}. Đáp án đúng tô đỏ + gạch chân theo mẫu.`,"ok");
+    setStatus(`⬇ Đã tải Word ngân hàng đề: ${q.mcq.length} câu nhiều lựa chọn, ${q.tf.length} câu đúng/sai${q.essay.length?`, ${q.essay.length} câu tự luận`:""}. Đáp án đúng tô đỏ + gạch chân theo mẫu.`+(tfWarn.length?` <b style="color:#b26a00">⚠️ Câu đúng/sai thứ ${tfWarn.join(", ")}: không tách đủ 4 ý a–d từ câu trả lời của Gemini — đã giữ nguyên văn gốc; hãy kiểm tra các câu này.</b>`:""),tfWarn.length?"err":"ok");
   }catch(err){ setStatus("❌ Không xuất được: "+err.message,"err"); }
 });
 

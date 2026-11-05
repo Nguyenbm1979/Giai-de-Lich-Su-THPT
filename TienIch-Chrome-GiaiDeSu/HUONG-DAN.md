@@ -26,3 +26,6 @@ Bấm **💾 Lưu kỹ năng** để trang nhớ tên thẻ `@kỹ năng`, model
 
 ## Phần Gemini không trả kết quả (v1.2)
 Khi một ảnh/trang bị Gemini bỏ trống hoặc từ chối, trang tự thử lại 1 lần rồi đánh dấu phần đó và **vẫn giải tiếp các phần còn lại**. Cuối cùng có khung đỏ liệt kê các phần lỗi, mỗi phần có: **🔁 Gửi lại tự động**, **📨 Gửi sang Gemini (tôi tự bấm Gửi)** — tiện ích dán sẵn ảnh + câu lệnh vào Gemini và đưa tab Gemini lên trước, bạn tự bấm Gửi, chờ xong bấm Copy rồi dán vào ô của phần đó — cùng **📋 Sao chép câu lệnh** và **💾 Tải ảnh** nếu muốn làm hoàn toàn bằng tay. Kết quả dán vào được xếp đúng vị trí của phần đó.
+
+## Phiên bản 1.3
+Giữ đúng nhãn a) b) c) d) (hoặc A. B. C. D.) khi Gemini trả danh sách đánh chữ cái, thay vì đổi thành 1, 2, 3, 4. **Nên cập nhật** thư mục tiện ích lên v1.3 nếu thấy câu đúng/sai bị mất các ý.
