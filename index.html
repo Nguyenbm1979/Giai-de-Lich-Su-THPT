@@ -851,6 +851,8 @@ const partTag=(i,n,ten)=>n>1?` [Phần ${i+1}/${n}${ten?": "+ten:""}]`:"";
 const nCau=t=>(String(t||"").match(/^##\s*Câu/mg)||[]).length;
 const isBadText=t=>!t||!t.trim()||(nCau(t)===0&&t.trim().length<600);   // trả lời trống/ngắn mà không có câu nào = Gemini từ chối hoặc báo lỗi
 // Gemini hay mở đầu "Dưới đây là lời giải…" trước câu đầu tiên của mỗi phần: bỏ đoạn dẫn ngắn đó (mỗi phần phải bắt đầu bằng "## Câu")
+// Bỏ khối "câu bị cắt" Gemini ghi thay cho câu nằm ngang giữa hai trang (khối không có đáp án/lời giải nào) và các dòng đánh dấu rời
+const dropCutStubs=t=>String(t||"").split(/^(?=##\s*Câu)/m).filter(b=>!(/câu bị cắt/i.test(b)&&!/Đáp án chọn|\*\*Ý\s*[a-d]\)\*\*|Gợi ý đáp án/i.test(b))).join("").replace(/^\s*\[câu bị cắt[^\]]*\]\s*$/gmi,"");
 const stripPreamble=t=>{ const s=String(t||""), m=s.search(/^##\s*Câu/m); const head=m>0?s.slice(0,m):""; return (m>0&&m<=300&&!/Đáp án|\*\*Ý\s*[a-d]\)|Gợi ý/i.test(head))?s.slice(m):s; };
 // Câu nào chưa có lời giải/đáp án (ví dụ tự luận bị cụt) -> danh sách số câu để cảnh báo
 function cauThieuLoiGiai(md){
@@ -872,16 +874,64 @@ function gwFail(msg){            // lỗi chung (mất tiện ích, sai thẻ, s
     $("#status").insertAdjacentHTML("beforeend",` <span class="hint">(${gwQ.results.filter(Boolean).length} phần đã có kết quả được giữ)</span>`); }
   gwRenderFails();
 }
-function gwPromptFor(q,i){
+// ---- Quy tắc bổ sung gửi kèm mọi lần giải (kể cả khi dùng @kỹ năng: câu lệnh ngắn không chứa các quy tắc này) ----
+const RULE_TF=`\n\nQUY TẮC CÂU ĐÚNG/SAI (BẮT BUỘC): ngay dưới dòng "## Câu N" phải chép NGUYÊN VĂN đoạn tư liệu, rồi chép 4 ý của đề thành 4 DÒNG RIÊNG bắt đầu "a) ", "b) ", "c) ", "d) " (mỗi ý một dòng, đủ chữ như trong đề). Chỉ SAU 4 dòng đó mới viết các dòng "* **Ý a)** ĐÚNG/SAI" kèm lý giải. Tuyệt đối không bỏ 4 dòng chép đề này.`;
+const RULE_REF=`\n\nCÓ 2 TỆP: tệp tên bắt đầu bằng "THAM-KHAO-" là ẢNH TRANG TRƯỚC, chỉ dùng để đọc phần ĐẦU của câu bị cắt ở cuối trang trước; tệp còn lại là ẢNH CẦN GIẢI. KHÔNG giải lại các câu đã trọn vẹn nằm hoàn toàn trong ảnh tham khảo. Nếu câu đầu tiên của ảnh cần giải chỉ có phần tiếp (ví dụ chỉ có các ý a), b), c), d) hoặc các phương án) vì đề dẫn nằm ở trang trước, hãy lấy đề dẫn từ ảnh tham khảo, ghép thành câu hoàn chỉnh và giải ĐẦY ĐỦ với đúng số câu in trên đề.`;
+const RULE_CUT=`\n\nNếu câu CUỐI của ảnh cần giải bị cắt dở (thiếu phương án/ý vì phần còn lại nằm ở trang sau): KHÔNG giải câu đó, bỏ qua hoàn toàn và không viết dòng nào về nó (phần sau sẽ giải).`;
+const RULE_FIX=`CHỈ CHÉP LẠI ĐỀ, KHÔNG GIẢI (bỏ qua mọi định dạng đầu ra đã thiết lập trước đó). Với MỖI câu trắc nghiệm ĐÚNG/SAI (có đoạn tư liệu hoặc thông tin kèm 4 ý a, b, c, d) trong ảnh, chép theo đúng mẫu:\n## Câu [số in trong đề]\na) [nguyên văn ý a]\nb) [nguyên văn ý b]\nc) [nguyên văn ý c]\nd) [nguyên văn ý d]\nChép theo thứ tự xuất hiện; không viết đáp án, lời giải hay nhận xét; bỏ qua câu nhiều lựa chọn và tự luận. Nếu 4 ý a-d ở đầu ảnh thuộc câu bị cắt từ trang trước thì vẫn chép 4 ý đó.\nĐề thi là các tệp/ảnh đính kèm trong tin nhắn này.`;
+// Trang trước làm ảnh tham khảo để ghép câu bị cắt ngang giữa hai trang (chỉ khi cả hai phần đều là ảnh thường)
+function gwHasRef(q,i){
+  if(i<=0||q.units.length<2) return false;
+  const u=q.units[i], p=q.units[i-1];
+  return !u.them&&!p.them&&p.tep.length&&u.tep.length&&[...p.tep,...u.tep].every(t=>/^image\//.test(t.type||""));
+}
+function gwTepFor(q,i){
+  const u=q.units[i]; if(!gwHasRef(q,i)) return u.tep;
+  const last=q.units[i-1].tep[q.units[i-1].tep.length-1];
+  return [{...last, ten:"THAM-KHAO-"+(last.ten||"trang-truoc")}, ...u.tep];
+}
+// Câu đúng/sai chưa tách đủ 4 ý a-d -> cần chép lại đề
+function gwThieuY(md){ try{ return parseBank(String(md||"")).tf.some(t=>t.nst<4); }catch(_){ return false; } }
+// Ghép 4 ý a-d (từ lượt "chỉ chép đề") vào các câu đúng/sai còn thiếu của kết quả gốc
+function gwMergeY(orig,fix){
+  const split=t=>String(t).replace(/\r/g,"").split(/^(?=##\s*Câu)/m);
+  const ob=split(orig);
+  const fx=split(fix).filter(b=>/^##\s*Câu/.test(b)).map(b=>{
+    const lines=b.split("\n").slice(1).filter(l=>l.trim()&&!/^\s*---+\s*$/.test(l)).flatMap(splitInlineStatements);
+    const ex=extractStatements(lines); return { num:(b.match(/^##\s*Câu\s*(\d+)/)||[])[1], st:ex.st, n:ex.n };
+  }).filter(f=>f.n>=4);
+  const need=[]; ob.forEach((b,k)=>{ if(/\*\*Ý\s*a\)\*\*/i.test(b)&&gwThieuY(b)) need.push(k); });
+  const used=new Set(), out=ob.slice(); let done=0;
+  const soCan=need.map(k=>(ob[k].match(/^##\s*Câu\s*(\d+)/)||[])[1]);
+  const coSo=fx.some(f=>soCan.includes(f.num));
+  need.forEach((k,j)=>{
+    const num=(ob[k].match(/^##\s*Câu\s*(\d+)/)||[])[1];
+    let fi=fx.findIndex((f,x)=>!used.has(x)&&f.num===num);
+    if(fi<0&&!coSo) fi=fx.findIndex((f,x)=>!used.has(x));           // không câu nào trùng số: ghép theo thứ tự
+    if(fi<0||!fx[fi]||used.has(fi)) return; used.add(fi);
+    const f=fx[fi], cut=ob[k].search(/^\s*[*-]?\s*\*\*Ý\s*a\)\*\*/mi); if(cut<0) return;
+    const head=ob[k].slice(0,cut).split("\n").filter(l=>!/^\s*(?:[*•·–-]\s*)?(?:\*\*)?\(?[a-d]\)/.test(l)).join("\n").trimEnd();
+    out[k]=head+"\n\n"+["a","b","c","d"].map(c=>`${c}) ${f.st[c]}`).join("\n")+"\n\n"+ob[k].slice(cut); done++;
+  });
+  return { md:out.join(""), done, need:need.length };
+}
+function gwPromptFor(q,i,khongThamKhao){
   const u=q.units[i], n=q.units.length;
   let cau=(q.tag?buildShortPrompt():buildPromptText())+u.them;
-  if(n>1) cau+=`\n\nĐÂY LÀ PHẦN ${i+1}/${n} CỦA ĐỀ (chỉ có ảnh/trang này). Giải đầy đủ MỌI câu nhìn thấy trong phần này, giữ đúng số câu in trên đề. Nếu một câu bị cắt dở ở mép ảnh (thiếu phương án/ý) thì ghi rõ "[câu bị cắt — cần xem ảnh kế tiếp]" thay vì đoán.`;
+  const coRef=!khongThamKhao&&gwHasRef(q,i);
+  if(u.fixMode) return RULE_FIX+(coRef?RULE_REF:"");
+  if(n>1){
+    cau+=`\n\nĐÂY LÀ PHẦN ${i+1}/${n} CỦA ĐỀ. Giải đầy đủ MỌI câu của ảnh cần giải, giữ đúng số câu in trên đề.`;
+    if(coRef) cau+=RULE_REF;
+    if(!khongThamKhao&&gwHasRef(q,i+1)) cau+=RULE_CUT;      // chỉ bảo "bỏ câu cuối bị cắt" khi phần sau chắc chắn nhận được ảnh trang này để giải
+  }
+  cau+=RULE_TF;
   if(!q.tag) cau+=NOTE_NOSGK;
   return cau;
 }
 function gwRebuild(){            // ghép lại toàn bộ lời giải theo đúng thứ tự phần; phần chưa có kết quả = dòng đánh dấu
   const q=gwQ; if(!q) return;
-  fullMarkdown=q.units.map((u,k)=>stripPreamble(q.results[k])||PH(k,q.units.length,u.ten)).join("\n\n---\n\n");
+  fullMarkdown=q.units.map((u,k)=>dropCutStubs(stripPreamble(q.results[k]))||PH(k,q.units.length,u.ten)).join("\n\n---\n\n");
   renderOutput(); $("#exportDocx").disabled=false; $("#exportBank").disabled=false; $("#copyBtn").disabled=false;
   try{ compareKey(); }catch(_){}
   saveHistory();
@@ -894,10 +944,12 @@ function gwSendUnit(){
   setStatus('<span class="spin"></span> Đang gửi'+partTag(i,n,u.ten)+(u.tries?` (thử lại lần ${u.tries+1})`:"")+"…");
   gwWatch=setTimeout(()=>{ if(gwJob) toExt({loai:"trang-thai",tu_dong:true}); },20000);
   gwStartDog();
-  toExt({ loai:"giao", job:{ id:gwJob.id, model:q.model, cau_lenh:gwPromptFor(q,i), tep:u.tep, ky_nang:q.tag||"", tai_khoan:q.acc } });
+  toExt({ loai:"giao", job:{ id:gwJob.id, model:q.model, cau_lenh:gwPromptFor(q,i), tep:gwTepFor(q,i), ky_nang:u.fixMode?"":(q.tag||""), tai_khoan:q.acc } });
 }
 function gwPartBad(i,reason){    // một phần Gemini không trả kết quả: tự thử lại 1 lần, vẫn lỗi thì đánh dấu để xử lý tay
-  const q=gwQ, u=q.units[i]; u.tries=(u.tries||0)+1; gwBusy(false); gwJob=null;
+  const q=gwQ, u=q.units[i];
+  if(u.fixMode){ u.fixMode=false; gwBusy(false); gwJob=null; gwAfterUnit(); return; }   // lượt chép lại 4 ý hỏng: giữ kết quả gốc
+  u.tries=(u.tries||0)+1; gwBusy(false); gwJob=null;
   if(u.tries<2){ setStatus(`⏳ Phần ${i+1}/${q.units.length} chưa có kết quả (${escH(reason).slice(0,80)}). Tự thử lại…`,"err"); setTimeout(()=>{ q.i=i; gwSendUnit(); },2000); return; }
   u.status="fail"; u.reason=reason; gwAfterUnit();
 }
@@ -914,6 +966,12 @@ function gwLateResult(du){       // Gemini trả lời sau khi trang đã bỏ p
 }
 function gwAfterUnit(){
   const q=gwQ; gwBusy(false); gwJob=null; gwRebuild();
+  const cu=q.units[q.i];
+  if(cu&&cu.status==="ok"&&!cu.repaired&&!cu.fixMode&&gwThieuY(q.results[q.i])){      // có câu đúng/sai chưa tách đủ 4 ý a–d -> nhờ Gemini chép lại đề đúng 1 lần
+    cu.repaired=true; cu.fixMode=true; cu.tries=0;
+    setStatus(`🔧 Phần ${q.i+1}/${q.units.length} có câu đúng/sai thiếu nội dung 4 ý — đang nhờ Gemini chép lại đề…`);
+    setTimeout(gwSendUnit,1500); return;
+  }
   if(q.only!=null){ q.only=null; gwFinish(); return; }                       // chạy lại riêng 1 phần
   if(q.i+1<q.units.length){ q.i++; setTimeout(gwSendUnit,1500); } else gwFinish();
 }
@@ -924,12 +982,12 @@ function gwFinish(){
   if(bad) setStatus(`⚠️ Có kết quả ${n-bad}/${n} phần. <b>${bad} phần Gemini không trả kết quả</b> — xem khung màu đỏ bên dưới: thử lại, hoặc <b>gửi sang Gemini rồi tự bấm Gửi, copy kết quả dán vào</b>.`,"err");
   else setStatus(`✅ Đã nhận đủ ${n} phần từ Gemini Pro (${nCau(fullMarkdown)} câu). Có thể tải Word hoặc đối chiếu đáp án.`+(thieu.length?` <b style="color:#c0392b">⚠️ Câu ${thieu.join(", ")} chưa có lời giải/đáp án đầy đủ — hãy bấm “Giải tiếp” hoặc gửi lại phần chứa câu đó.</b>`:"")+(notes?` <b style="color:#b26a00">⚠️ ${notes} phần Gemini đã tự xóa câu trả lời lúc cuối; trang giữ bản đã viết xong — hãy soát kỹ.</b>`:""),"ok");
 }
-function gwRunOne(i){ const q=gwQ, u=q.units[i]; u.tries=0; u.status="wait"; u.reason=""; q.i=i; q.only=i; gwRenderFails(); gwSendUnit(); }
+function gwRunOne(i){ const q=gwQ, u=q.units[i]; u.fixMode=false; u.tries=0; u.status="wait"; u.reason=""; q.i=i; q.only=i; gwRenderFails(); gwSendUnit(); }
 function gwManualSend(i){        // dán ảnh + câu lệnh vào Gemini nhưng KHÔNG bấm Gửi — người dùng tự bấm
   const q=gwQ; q.i=i;
   gwJob={ id:"m"+Date.now()+"_"+i, idx:i, manual:true }; gwBusy(true);
   failMsg(i,'<span class="spin"></span> Đang dán ảnh và câu lệnh vào tab Gemini…');
-  toExt({ loai:"giao", job:{ id:gwJob.id, model:q.model, cau_lenh:gwPromptFor(q,i), tep:q.units[i].tep, ky_nang:q.tag||"", tai_khoan:q.acc, khong_gui:true } });
+  toExt({ loai:"giao", job:{ id:gwJob.id, model:q.model, cau_lenh:gwPromptFor(q,i), tep:gwTepFor(q,i), ky_nang:q.tag||"", tai_khoan:q.acc, khong_gui:true } });
 }
 function failMsg(i,html){ const el=document.querySelector(`#gwFailBox .failitem[data-i="${i}"] .fmsg`); if(el) el.innerHTML=html; }
 function gwRenderFails(){
@@ -954,7 +1012,7 @@ $("#gwFailBox").addEventListener("click",async e=>{
     if(!extReady||parseFloat(extVer)<1.2) return failMsg(i,"⚠️ Cần tiện ích Chrome phiên bản 1.2 trở lên. Hãy dùng <b>📋 Sao chép câu lệnh</b> + <b>💾 Tải ảnh</b>, dán vào Gemini bằng tay.");
     gwManualSend(i);
   }
-  else if(a==="copy"){ try{ await navigator.clipboard.writeText(gwPromptFor(q,i)); failMsg(i,"📋 Đã sao chép câu lệnh. Mở gemini.google.com, đính kèm ảnh (nút 💾 Tải ảnh), dán câu lệnh và gửi."); }catch(_){ failMsg(i,"⚠️ Không sao chép được tự động."); } }
+  else if(a==="copy"){ try{ await navigator.clipboard.writeText(gwPromptFor(q,i,true)); failMsg(i,"📋 Đã sao chép câu lệnh. Mở gemini.google.com, đính kèm ảnh (nút 💾 Tải ảnh), dán câu lệnh và gửi."); }catch(_){ failMsg(i,"⚠️ Không sao chép được tự động."); } }
   else if(a==="dl"){ const t=u.tep[0]; if(!t) return; const bin=atob(t.b64), arr=new Uint8Array(bin.length); for(let k=0;k<bin.length;k++) arr[k]=bin.charCodeAt(k);
     const url=URL.createObjectURL(new Blob([arr],{ type:t.type })), an=document.createElement("a"); an.href=url; an.download=t.ten||("phan-"+(i+1)+".png"); an.click(); setTimeout(()=>URL.revokeObjectURL(url),1500); }
   else if(a==="use"){
@@ -990,7 +1048,10 @@ window.addEventListener("message",ev=>{
     const tot=(du.md_tot&&du.md_tot.trim())?du.md_tot:(du.chu_tot||"");
     const thay=tot && tot.length>Math.max((text||"").length*1.5,(text||"").length+500);
     if(thay) text=tot;
+    if(isBadText(text)&&q.units[i].fixMode) return gwPartBad(i,"");
     if(isBadText(text)) return gwPartBad(i,(text&&text.trim())?("Gemini trả lời: “"+text.trim().slice(0,140)+"”"):"Gemini không trả lời (có thể hết lượt Pro, bị từ chối hoặc giao diện đã đổi)");
+    if(q.units[i].fixMode){ q.units[i].fixMode=false; const g=gwMergeY(q.results[i],text); q.results[i]=g.md; gwBusy(false); gwJob=null;
+      setStatus(`🔧 Phần ${i+1}/${q.units.length}: đã chép lại 4 ý a–d cho ${g.done}/${g.need} câu đúng/sai bị thiếu.`,g.done<g.need?"err":"ok"); gwAfterUnit(); return; }
     q.results[i]=text; q.units[i].status="ok"; q.units[i].reason=""; q.units[i].note=!!thay;
     gwAfterUnit();
   }
@@ -1057,7 +1118,7 @@ $("#gwSend").addEventListener("click",async()=>{
   }catch(err){ gwBusy(false); gwJob=null; gwQ=null; setStatus("❌ "+err.message,"err"); }
 });
 $("#gwRetry").addEventListener("click",()=>{ if(gwQ) gwSendUnit(); });
-$("#gwCancel").addEventListener("click",()=>{ toExt({loai:"huy",id:gwJob&&gwJob.id}); gwBusy(false); gwJob=null; setStatus("⏹ Đã hủy việc gửi sang Gemini."+(gwQ&&gwQ.results.filter(Boolean).length?` ${gwQ.results.filter(Boolean).length} phần đã giải được giữ trong kết quả.`:""),""); });
+$("#gwCancel").addEventListener("click",()=>{ if(gwQ) gwQ.units.forEach(u=>{ u.fixMode=false; }); toExt({loai:"huy",id:gwJob&&gwJob.id}); gwBusy(false); gwJob=null; setStatus("⏹ Đã hủy việc gửi sang Gemini."+(gwQ&&gwQ.results.filter(Boolean).length?` ${gwQ.results.filter(Boolean).length} phần đã giải được giữ trong kết quả.`:""),""); });
 
 // ---------- Ước tính token ----------
 const fmtN=n=>Number(n).toLocaleString("vi-VN");
