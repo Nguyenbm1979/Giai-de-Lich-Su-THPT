@@ -10,9 +10,10 @@ function moCoi() {   // tiện ích vừa nạp lại: đoạn mã cũ trong tab
   if (!daTaiLai) { daTaiLai = true; location.reload(); }
   return true;
 }
+let pageTabHienTai = null;   // tab trang Giải đề giao việc: gửi kèm để nền dựng lại việc nếu service worker bị tắt
 const gui = (loai, du_lieu) => new Promise(r => {
   if (moCoi()) return r(null);
-  try { chrome.runtime.sendMessage({loai, du_lieu}, r); } catch (e) { moCoi(); r(null); }
+  try { chrome.runtime.sendMessage({loai, du_lieu: {...du_lieu, pageTab: pageTabHienTai}}, r); } catch (e) { moCoi(); r(null); }
 });
 const log = s => { console.log("[giai-de-su]", s); gui("nhat-ky", {s}); };
 const hien = e => e && e.offsetParent !== null;
@@ -234,7 +235,7 @@ function docKetQua() {
 }
 
 async function lamViec(v) {
-  dangLam = true; biHuy = false;
+  dangLam = true; biHuy = false; pageTabHienTai = v.pageTab != null ? v.pageTab : pageTabHienTai;
   const nhip = setInterval(async () => { if (await gui("nhip", {id: v.id}) === false) biHuy = true; }, 5000);
   const ketQua = du => gui("ket-qua", du.loi && !du.than_trang ? {id: v.id, ...du, than_trang: docKetQua().than_trang} : {id: v.id, ...du});
   try {

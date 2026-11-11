@@ -1,6 +1,7 @@
 // Nền (service worker): giữ MỘT việc hiện tại, giao cho tab Gemini, trả kết quả về tab trang Giải đề.
 "use strict";
 let lastPoll = 0, lastPollTab = null;   // lần gần nhất một tab Gemini hỏi việc (để chẩn đoán)
+const huyIds = new Set();   // id các việc đã bị hủy: không dựng lại sau khi service worker khởi động lại
 let cur = null;   // {id, job, pageTab, nhan, huy, xong, beat, t0}
 const GEM = "https://gemini.google.com/";
 const goc = n => n ? `${GEM}u/${n}/` : GEM;
@@ -8,8 +9,14 @@ const toPage = (tab, msg) => chrome.tabs.sendMessage(tab, msg).catch(() => {});
 
 async function moTabGemini(job) {
   const ds = await chrome.tabs.query({url: GEM + "*"});
-  if (ds.length) return;
-  await chrome.tabs.create({url: goc(job.tai_khoan) + "app", active: true});
+  if (!ds.length) { await chrome.tabs.create({url: goc(job.tai_khoan) + "app", active: true}); return; }
+  // Tab Gemini nằm nền thì Chrome làm chậm bộ đếm giờ của nó -> đưa lên trước (chỉ đổi tab trong cửa sổ của nó, không cướp cửa sổ khác)
+  if (!ds.some(t => t.active)) chrome.tabs.update(ds[0].id, {active: true}).catch(() => {});
+}
+// Service worker có thể bị Chrome tắt giữa chừng làm mất `cur`: dựng lại từ id việc + tab trang mà tab Gemini gửi kèm
+function khoiPhuc(du) {
+  if (!cur && du && du.id && du.pageTab != null && !huyIds.has(du.id))
+    cur = {id: du.id, job: null, pageTab: du.pageTab, nhan: true, huy: false, xong: false, beat: Date.now(), t0: Date.now()};
 }
 
 chrome.runtime.onMessage.addListener((tin, sender, traLoi) => {
@@ -22,7 +29,7 @@ chrome.runtime.onMessage.addListener((tin, sender, traLoi) => {
       await moTabGemini(tin.job);
       return {ok: true};
     }
-    if (tin.loai === "huy") { if (cur) cur.huy = true; return {ok: true}; }
+    if (tin.loai === "huy") { if (cur) cur.huy = true; if (du.id) huyIds.add(du.id); return {ok: true}; }
     if (tin.loai === "trang-thai") {                // trang Giải đề hỏi: tab Gemini có đang chạy tiện ích không?
       const tabs = await chrome.tabs.query({url: GEM + "*"});
       return {tabs: tabs.length, poll_ago: lastPoll ? Date.now() - lastPoll : null,
@@ -30,19 +37,21 @@ chrome.runtime.onMessage.addListener((tin, sender, traLoi) => {
     }
     if (tin.loai === "lay") {                       // tab Gemini hỏi có việc không
       lastPoll = Date.now(); lastPollTab = sender.tab ? sender.tab.id : null;
-      if (!cur || cur.xong || cur.huy) return null;
+      if (!cur || cur.xong || cur.huy || !cur.job) return null;
       // tab nhận việc im lặng quá 75s (đóng/treo) -> cho tab khác nhận lại
       if (cur.nhan && Date.now() - cur.beat > 75000) cur.nhan = false;
       if (cur.nhan) return null;
       cur.nhan = true; cur.beat = Date.now();
-      return cur.job;
+      return {...cur.job, pageTab: cur.pageTab};
     }
     if (tin.loai === "nhip") {                      // false = việc đã bỏ/hủy -> tab thôi làm
+      khoiPhuc(du);
       if (!cur || cur.id !== du.id || cur.huy || cur.xong) return false;
-      cur.beat = Date.now(); return true;
+      cur.beat = Date.now(); toPage(cur.pageTab, {loai: "nhip"}); return true;   // báo trang biết tab Gemini còn sống
     }
-    if (tin.loai === "nhat-ky") { if (cur) toPage(cur.pageTab, {loai: "tien-do", s: du.s}); return true; }
+    if (tin.loai === "nhat-ky") { khoiPhuc(du); if (cur) toPage(cur.pageTab, {loai: "tien-do", s: du.s}); return true; }
     if (tin.loai === "ket-qua") {
+      khoiPhuc(du);
       if (!cur || cur.id !== du.id) return false;
       cur.xong = true; toPage(cur.pageTab, {loai: "ket-qua", du});
       if (du.chuan_bi && sender.tab) {              // đưa tab Gemini lên trước để người dùng bấm Gửi

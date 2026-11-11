@@ -22,7 +22,7 @@ window.addEventListener("message", ev => {
       chrome.runtime.sendMessage({loai: "trang-thai"})
         .then(r => ra({loai: "trang-thai", tu_dong: !!d.tu_dong, ...(r || {tabs: -1})}))
         .catch(() => ra({loai: "trang-thai", tu_dong: !!d.tu_dong, tabs: -1}));
-    if (d.loai === "huy") chrome.runtime.sendMessage({loai: "huy"}).catch(() => {});
+    if (d.loai === "huy") chrome.runtime.sendMessage({loai: "huy", du_lieu: {id: d.id}}).catch(() => {});
   } catch (e) {
     if (!conSong()) return hetHan();
     ra({loai: "da-giao", ok: false, loi: String(e && e.message || e)});

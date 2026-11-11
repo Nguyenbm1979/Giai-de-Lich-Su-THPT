@@ -821,7 +821,7 @@ $("#useProResult").addEventListener("click",()=>{
 });
 
 // ---------- Cầu nối tiện ích Chrome → Gemini Pro ----------
-const EXT_VER_MOI="1.3";
+const EXT_VER_MOI="1.4";
 let extReady=false, extVer="", gwJob=null, gwWatch=null, gwQ=null;   // gwQ = {units:[{tep,them,ten,status,tries,reason}], results:[], i, tag, acc, model}
 function gwDiagText(d){
   if(d.tabs===-1) return "❌ Tiện ích không trả lời (nền bị tắt hoặc vừa tải lại). Hãy <b>tải lại trang (Cmd+Shift+R)</b> rồi thử lại.";
@@ -834,11 +834,35 @@ function gwDiagText(d){
 }
 function gwStopWatch(){ if(gwWatch){ clearTimeout(gwWatch); gwWatch=null; } }
 const toExt=o=>window.postMessage({ src:"gds-page", ...o },"*");
-function gwBusy(b){ $("#gwSend").disabled=b; $("#gwCancel").hidden=!b; if(b) $("#gwRetry").hidden=true; if(!b) gwStopWatch(); }
+let gwLast=0, gwDog=null;           // đồng hồ canh: tab Gemini (qua tiện ích) báo nhịp 5 giây/lần; im quá GW_IM_LANG_MS = coi như treo
+const GW_IM_LANG_MS=150000;
+function gwStopDog(){ if(gwDog){ clearInterval(gwDog); gwDog=null; } }
+function gwStartDog(){
+  gwStopDog(); gwLast=Date.now();
+  gwDog=setInterval(()=>{
+    if(!gwJob||gwJob.manual){ gwStopDog(); return; }
+    if(Date.now()-gwLast>GW_IM_LANG_MS){ const i=gwJob.idx; toExt({loai:"huy",id:gwJob.id}); gwPartBad(i,"tab Gemini im lặng hơn 150 giây (tab bị treo/đóng hoặc tiện ích mất liên lạc)"); }
+  },10000);
+}
+function gwBusy(b){ $("#gwSend").disabled=b; $("#gwCancel").hidden=!b; if(b) $("#gwRetry").hidden=true; if(!b){ gwStopWatch(); gwStopDog(); } }
 const NOTE_NOSGK="\n\nGHI CHÚ: tin nhắn này không đính kèm SGK. Hãy dựa vào kiến thức SGK Lịch sử (Kết nối tri thức) và chương trình GDPT 2018 mà bạn nắm chắc; ghi nguồn là tên bài/chủ đề tương ứng và nói rõ nếu không chắc chắn.";
 const partTag=(i,n,ten)=>n>1?` [Phần ${i+1}/${n}${ten?": "+ten:""}]`:"";
 const nCau=t=>(String(t||"").match(/^##\s*Câu/mg)||[]).length;
 const isBadText=t=>!t||!t.trim()||(nCau(t)===0&&t.trim().length<600);   // trả lời trống/ngắn mà không có câu nào = Gemini từ chối hoặc báo lỗi
+// Gemini hay mở đầu "Dưới đây là lời giải…" trước câu đầu tiên của mỗi phần: bỏ đoạn dẫn ngắn đó (mỗi phần phải bắt đầu bằng "## Câu")
+const stripPreamble=t=>{ const s=String(t||""), m=s.search(/^##\s*Câu/m); const head=m>0?s.slice(0,m):""; return (m>0&&m<=300&&!/Đáp án|\*\*Ý\s*[a-d]\)|Gợi ý/i.test(head))?s.slice(m):s; };
+// Câu nào chưa có lời giải/đáp án (ví dụ tự luận bị cụt) -> danh sách số câu để cảnh báo
+function cauThieuLoiGiai(md){
+  const parts=String(md||"").split(/^##\s*Câu\s*(\d+)/m), out=[];
+  for(let i=1;i<parts.length;i+=2){
+    const b=parts[i+1]||"", n=parts[i];
+    const mc=/Đáp án chọn:\s*\**\s*\[?\s*[A-D]\b/i.test(b);
+    const tf=(b.match(/\*\*Ý\s*[a-d]\)\*\*\s*\[?\s*(ĐÚNG|SAI)/gi)||[]).length>=4;
+    const es=/Gợi ý đáp án:?\**\s*\n?[\s\S]{20,}/i.test(b);
+    if(!(mc||tf||es)) out.push(n);
+  }
+  return out;
+}
 const PH=(i,n,ten)=>`[[PHAN_TRONG ${i+1}/${n}: ${ten||""}]]`;
 const escH=t=>String(t).replace(/&/g,"&amp;").replace(/</g,"&lt;");
 function gwFail(msg){            // lỗi chung (mất tiện ích, sai thẻ, sai tài khoản…) -> dừng cả hàng đợi, giữ phần đã có
@@ -856,7 +880,7 @@ function gwPromptFor(q,i){
 }
 function gwRebuild(){            // ghép lại toàn bộ lời giải theo đúng thứ tự phần; phần chưa có kết quả = dòng đánh dấu
   const q=gwQ; if(!q) return;
-  fullMarkdown=q.units.map((u,k)=>q.results[k]||PH(k,q.units.length,u.ten)).join("\n\n---\n\n");
+  fullMarkdown=q.units.map((u,k)=>stripPreamble(q.results[k])||PH(k,q.units.length,u.ten)).join("\n\n---\n\n");
   renderOutput(); $("#exportDocx").disabled=false; $("#exportBank").disabled=false; $("#copyBtn").disabled=false;
   try{ compareKey(); }catch(_){}
   saveHistory();
@@ -867,6 +891,7 @@ function gwSendUnit(){
   gwBusy(true);
   setStatus('<span class="spin"></span> Đang gửi'+partTag(i,n,u.ten)+(u.tries?` (thử lại lần ${u.tries+1})`:"")+"…");
   gwWatch=setTimeout(()=>{ if(gwJob) toExt({loai:"trang-thai",tu_dong:true}); },20000);
+  gwStartDog();
   toExt({ loai:"giao", job:{ id:gwJob.id, model:q.model, cau_lenh:gwPromptFor(q,i), tep:u.tep, ky_nang:q.tag||"", tai_khoan:q.acc } });
 }
 function gwPartBad(i,reason){    // một phần Gemini không trả kết quả: tự thử lại 1 lần, vẫn lỗi thì đánh dấu để xử lý tay
@@ -880,10 +905,11 @@ function gwAfterUnit(){
   if(q.i+1<q.units.length){ q.i++; setTimeout(gwSendUnit,1500); } else gwFinish();
 }
 function gwFinish(){
+  const thieu=cauThieuLoiGiai(fullMarkdown);
   const q=gwQ, n=q.units.length, bad=q.units.filter(u=>u.status==="fail").length, notes=q.units.filter(u=>u.note).length;
   gwRenderFails();
   if(bad) setStatus(`⚠️ Có kết quả ${n-bad}/${n} phần. <b>${bad} phần Gemini không trả kết quả</b> — xem khung màu đỏ bên dưới: thử lại, hoặc <b>gửi sang Gemini rồi tự bấm Gửi, copy kết quả dán vào</b>.`,"err");
-  else setStatus(`✅ Đã nhận đủ ${n} phần từ Gemini Pro (${nCau(fullMarkdown)} câu). Có thể tải Word hoặc đối chiếu đáp án.`+(notes?` <b style="color:#b26a00">⚠️ ${notes} phần Gemini đã tự xóa câu trả lời lúc cuối; trang giữ bản đã viết xong — hãy soát kỹ.</b>`:""),"ok");
+  else setStatus(`✅ Đã nhận đủ ${n} phần từ Gemini Pro (${nCau(fullMarkdown)} câu). Có thể tải Word hoặc đối chiếu đáp án.`+(thieu.length?` <b style="color:#c0392b">⚠️ Câu ${thieu.join(", ")} chưa có lời giải/đáp án đầy đủ — hãy bấm “Giải tiếp” hoặc gửi lại phần chứa câu đó.</b>`:"")+(notes?` <b style="color:#b26a00">⚠️ ${notes} phần Gemini đã tự xóa câu trả lời lúc cuối; trang giữ bản đã viết xong — hãy soát kỹ.</b>`:""),"ok");
 }
 function gwRunOne(i){ const q=gwQ, u=q.units[i]; u.tries=0; u.status="wait"; u.reason=""; q.i=i; q.only=i; gwRenderFails(); gwSendUnit(); }
 function gwManualSend(i){        // dán ảnh + câu lệnh vào Gemini nhưng KHÔNG bấm Gửi — người dùng tự bấm
@@ -928,12 +954,14 @@ $("#gwFailBox").addEventListener("click",async e=>{
 window.addEventListener("message",ev=>{
   if(ev.source!==window||!ev.data||ev.data.src!=="gds-ext") return;
   const d=ev.data;
-  if(d.loai==="pong"){ extReady=true; extVer=String(d.ver||""); $("#extState").textContent="✅ đã nhận tiện ích (v"+d.ver+")"+(d.ver!==EXT_VER_MOI?" ⚠️ bản cũ — hãy thay thư mục tiện ích bằng bản mới (v"+EXT_VER_MOI+") rồi tải lại tiện ích":""); $("#extForm").hidden=false; $("#extMiss").hidden=true; }
+  if(d.loai!=="pong") gwLast=Date.now();            // bất kỳ tín hiệu nào từ tiện ích = còn sống
+  if(d.loai==="pong"){ extReady=true; extVer=String(d.ver||""); $("#extState").textContent="✅ đã nhận tiện ích (v"+d.ver+")"+(d.ver!==EXT_VER_MOI?" ⚠️ bản cũ — hãy thay thư mục tiện ích bằng bản mới (v"+EXT_VER_MOI+"), bấm ⟳ tải lại tiện ích, rồi TẢI LẠI TRANG NÀY (Cmd+Shift+R)":""); $("#extForm").hidden=false; $("#extMiss").hidden=true; }
   else if(d.loai==="trang-thai"){ const t=gwDiagText(d); if(d.tu_dong){ if(gwJob) setStatus("⚠️ Sau 20 giây chưa có tiến độ. "+t,"err"); } else { $("#gwDiag").style.color=t.startsWith("✅")?"#1a7f4b":"#b26a00"; $("#gwDiag").innerHTML=t; } }
-  else if(d.loai==="het-han"){ extReady=false; $("#extState").textContent="⚠️ tiện ích vừa được tải lại"; if(gwJob||gwQ) gwFail("⚠️ Tiện ích Chrome vừa được tải lại nên trang này mất liên lạc. Hãy <b>tải lại trang (Cmd+Shift+R)</b> và tải lại tab Gemini, rồi bấm Gửi lại."); else setStatus("⚠️ Tiện ích vừa được tải lại. Hãy tải lại trang (Cmd+Shift+R) rồi tải lại tab Gemini.","err"); }
+  else if(d.loai==="het-han"){ extReady=false; $("#extState").textContent="⚠️ tiện ích vừa được tải lại"; if(gwJob||gwQ) { gwFail("⚠️ Tiện ích Chrome vừa được tải lại (hoặc cập nhật/tắt-bật) nên trang này mất liên lạc với tiện ích. Hãy <b>tải lại trang (Cmd+Shift+R)</b> và tải lại tab Gemini, rồi gửi lại. Các phần đã xong được lưu ở mục 4 – Lịch sử (bấm Mở)."); $("#gwRetry").hidden=true; } else setStatus("⚠️ Tiện ích vừa được tải lại. Hãy tải lại trang (Cmd+Shift+R) rồi tải lại tab Gemini.","err"); }
   else if(d.loai==="da-giao"){ if(!d.ok){ if(gwJob&&gwJob.manual){ const i=gwJob.idx; gwBusy(false); gwJob=null; failMsg(i,"❌ "+escH(d.loi||"Không giao được việc cho tiện ích")); } else gwFail("❌ "+(d.loi||"Không giao được việc cho tiện ích")); } }
   else if(d.loai==="tien-do"&&gwJob){ gwStopWatch(); const q=gwQ; const t=String(d.s||"").replace(/</g,"&lt;"); if(gwJob.manual) failMsg(gwJob.idx,'<span class="spin"></span> '+t); setStatus('<span class="spin"></span> '+(q?`<b>${(gwJob.idx!=null?gwJob.idx:q.i)+1}/${q.units.length}</b> `:"")+t); }
   else if(d.loai==="ket-qua"&&gwJob){
+    if(d.du&&d.du.id&&d.du.id!==gwJob.id) return;      // kết quả muộn của việc đã bỏ/thử lại: không gán nhầm sang phần khác
     const du=d.du||{}, q=gwQ, i=gwJob.idx!=null?gwJob.idx:q.i;
     if(gwJob.manual){                                   // chế độ tự bấm Gửi
       const job=gwJob; gwBusy(false); gwJob=null;
@@ -1016,7 +1044,7 @@ $("#gwSend").addEventListener("click",async()=>{
   }catch(err){ gwBusy(false); gwJob=null; gwQ=null; setStatus("❌ "+err.message,"err"); }
 });
 $("#gwRetry").addEventListener("click",()=>{ if(gwQ) gwSendUnit(); });
-$("#gwCancel").addEventListener("click",()=>{ toExt({loai:"huy"}); gwBusy(false); gwJob=null; setStatus("⏹ Đã hủy việc gửi sang Gemini."+(gwQ&&gwQ.results.filter(Boolean).length?` ${gwQ.results.filter(Boolean).length} phần đã giải được giữ trong kết quả.`:""),""); });
+$("#gwCancel").addEventListener("click",()=>{ toExt({loai:"huy",id:gwJob&&gwJob.id}); gwBusy(false); gwJob=null; setStatus("⏹ Đã hủy việc gửi sang Gemini."+(gwQ&&gwQ.results.filter(Boolean).length?` ${gwQ.results.filter(Boolean).length} phần đã giải được giữ trong kết quả.`:""),""); });
 
 // ---------- Ước tính token ----------
 const fmtN=n=>Number(n).toLocaleString("vi-VN");
