@@ -821,7 +821,7 @@ $("#useProResult").addEventListener("click",()=>{
 });
 
 // ---------- Cầu nối tiện ích Chrome → Gemini Pro ----------
-const EXT_VER_MOI="1.4";
+const EXT_VER_MOI="1.5";
 let extReady=false, extVer="", gwJob=null, gwWatch=null, gwQ=null;   // gwQ = {units:[{tep,them,ten,status,tries,reason}], results:[], i, tag, acc, model}
 function gwDiagText(d){
   if(d.tabs===-1) return "❌ Tiện ích không trả lời (nền bị tắt hoặc vừa tải lại). Hãy <b>tải lại trang (Cmd+Shift+R)</b> rồi thử lại.";
@@ -835,14 +835,17 @@ function gwDiagText(d){
 function gwStopWatch(){ if(gwWatch){ clearTimeout(gwWatch); gwWatch=null; } }
 const toExt=o=>window.postMessage({ src:"gds-page", ...o },"*");
 let gwLast=0, gwDog=null;           // đồng hồ canh: tab Gemini (qua tiện ích) báo nhịp 5 giây/lần; im quá GW_IM_LANG_MS = coi như treo
-const GW_IM_LANG_MS=240000;
+const GW_IM_LANG_MS=120000;
+let gwDogHoi=false;
 function gwStopDog(){ if(gwDog){ clearInterval(gwDog); gwDog=null; } }
 function gwStartDog(){
-  gwStopDog(); gwLast=Date.now();
+  gwStopDog(); gwLast=Date.now(); gwDogHoi=false;
   if(!(parseFloat(extVer)>=1.4)) return;                 // tiện ích cũ không gửi nhịp sống -> không canh, tránh báo treo oan
   gwDog=setInterval(()=>{
     if(!gwJob||gwJob.manual){ gwStopDog(); return; }
-    if(Date.now()-gwLast>GW_IM_LANG_MS){ const i=gwJob.idx; toExt({loai:"huy",id:gwJob.id}); gwPartBad(i,"tab Gemini im lặng hơn 4 phút (tab bị treo/đóng hoặc tiện ích mất liên lạc)"); }
+    if(Date.now()-gwLast>GW_IM_LANG_MS){
+      if(!gwDogHoi){ gwDogHoi=true; toExt({loai:"lay-ket-qua",id:gwJob.id}); gwLast=Date.now()-GW_IM_LANG_MS+15000; return; }   // trước khi bỏ: hỏi nền xem việc đã xong mà tin báo bị rơi không
+      const i=gwJob.idx; toExt({loai:"huy",id:gwJob.id}); gwPartBad(i,"tab Gemini im lặng hơn 4 phút (tab bị treo/đóng hoặc tiện ích mất liên lạc)"); }
   },10000);
 }
 function gwBusy(b){ $("#gwSend").disabled=b; $("#gwCancel").hidden=!b; if(b) $("#gwRetry").hidden=true; if(!b){ gwStopWatch(); gwStopDog(); } }
@@ -1027,7 +1030,10 @@ window.addEventListener("message",ev=>{
   const d=ev.data;
   if(d.loai!=="pong") gwLast=Date.now();            // bất kỳ tín hiệu nào từ tiện ích = còn sống
   if(d.loai==="pong"){ extReady=true; extVer=String(d.ver||""); $("#extState").textContent="✅ đã nhận tiện ích (v"+d.ver+")"+(d.ver!==EXT_VER_MOI?" ⚠️ bản cũ — hãy thay thư mục tiện ích bằng bản mới (v"+EXT_VER_MOI+"), bấm ⟳ tải lại tiện ích, rồi TẢI LẠI TRANG NÀY (Cmd+Shift+R)":""); $("#extForm").hidden=false; $("#extMiss").hidden=true; }
-  else if(d.loai==="trang-thai"){ const t=gwDiagText(d); if(d.tu_dong){ if(gwJob) setStatus("⚠️ Sau 20 giây chưa có tiến độ. "+t,"err"); } else { $("#gwDiag").style.color=t.startsWith("✅")?"#1a7f4b":"#b26a00"; $("#gwDiag").innerHTML=t; } }
+  else if(d.loai==="trang-thai"){ const t=gwDiagText(d); if(d.tu_dong){ if(gwJob){ setStatus("⚠️ Sau 20 giây chưa có tiến độ. "+t,"err");
+      if(!gwJob.manual&&(!d.job||d.job.xong)){      // nền không còn việc nào đang chạy trong khi trang vẫn chờ: lấy lại kết quả hoặc gửi lại
+        const jid=gwJob.id; toExt({loai:"lay-ket-qua",id:jid});
+        setTimeout(()=>{ if(gwJob&&gwJob.id===jid&&!gwJob.manual) gwPartBad(gwJob.idx,"tiện ích không còn giữ việc này (nền bị tắt/khởi động lại hoặc tin báo bị rơi)"); },4000); } } } else { $("#gwDiag").style.color=t.startsWith("✅")?"#1a7f4b":"#b26a00"; $("#gwDiag").innerHTML=t; } }
   else if(d.loai==="het-han"){ extReady=false; $("#extState").textContent="⚠️ tiện ích vừa được tải lại"; if(gwJob||gwQ) { gwFail("⚠️ Tiện ích Chrome vừa được tải lại (hoặc cập nhật/tắt-bật) nên trang này mất liên lạc với tiện ích. Hãy <b>tải lại trang (Cmd+Shift+R)</b> và tải lại tab Gemini, rồi gửi lại. Các phần đã xong được lưu ở mục 4 – Lịch sử (bấm Mở)."); $("#gwRetry").hidden=true; } else setStatus("⚠️ Tiện ích vừa được tải lại. Hãy tải lại trang (Cmd+Shift+R) rồi tải lại tab Gemini.","err"); }
   else if(d.loai==="da-giao"){ if(!d.ok){ if(gwJob&&gwJob.manual){ const i=gwJob.idx; gwBusy(false); gwJob=null; failMsg(i,"❌ "+escH(d.loi||"Không giao được việc cho tiện ích")); } else gwFail("❌ "+(d.loi||"Không giao được việc cho tiện ích")); } }
   else if(d.loai==="tien-do"&&gwJob){ gwStopWatch(); const q=gwQ; const t=String(d.s||"").replace(/</g,"&lt;"); if(gwJob.manual) failMsg(gwJob.idx,'<span class="spin"></span> '+t); setStatus('<span class="spin"></span> '+(q?`<b>${(gwJob.idx!=null?gwJob.idx:q.i)+1}/${q.units.length}</b> `:"")+t); }

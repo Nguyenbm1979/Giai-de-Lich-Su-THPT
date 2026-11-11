@@ -1,6 +1,7 @@
 // Nền (service worker): giữ MỘT việc hiện tại, giao cho tab Gemini, trả kết quả về tab trang Giải đề.
 "use strict";
 let lastPoll = 0, lastPollTab = null;   // lần gần nhất một tab Gemini hỏi việc (để chẩn đoán)
+const luuKq = new Map();   // id việc -> kết quả cuối (giữ vài việc gần nhất để trang hỏi lại nếu tin báo bị rơi)
 const huyIds = new Set();   // id các việc đã bị hủy: không dựng lại sau khi service worker khởi động lại
 let cur = null;   // {id, job, pageTab, nhan, huy, xong, beat, t0}
 const GEM = "https://gemini.google.com/";
@@ -29,6 +30,7 @@ chrome.runtime.onMessage.addListener((tin, sender, traLoi) => {
       await moTabGemini(tin.job);
       return {ok: true};
     }
+    if (tin.loai === "lay-ket-qua") return luuKq.get(du.id) || null;   // trang hỏi lại kết quả của một việc đã xong
     if (tin.loai === "huy") { if (cur) cur.huy = true; if (du.id) huyIds.add(du.id); return {ok: true}; }
     if (tin.loai === "trang-thai") {                // trang Giải đề hỏi: tab Gemini có đang chạy tiện ích không?
       const tabs = await chrome.tabs.query({url: GEM + "*"});
@@ -53,6 +55,7 @@ chrome.runtime.onMessage.addListener((tin, sender, traLoi) => {
     if (tin.loai === "ket-qua") {
       khoiPhuc(du);
       if (!cur || cur.id !== du.id) return false;
+      luuKq.set(du.id, du); if (luuKq.size > 4) luuKq.delete(luuKq.keys().next().value);
       cur.xong = true; toPage(cur.pageTab, {loai: "ket-qua", du});
       if (du.chuan_bi && sender.tab) {              // đưa tab Gemini lên trước để người dùng bấm Gửi
         chrome.tabs.update(sender.tab.id, {active: true}).catch(() => {});

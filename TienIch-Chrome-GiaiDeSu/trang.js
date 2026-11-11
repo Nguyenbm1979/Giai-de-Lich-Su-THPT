@@ -280,7 +280,8 @@ async function lamViec(v) {
     const kq = docKetQua();
     if (kq.md_tot && kq.md_tot.length > Math.max((kq.md || "").length * 1.5, (kq.md || "").length + 500))
       log("Gemini đã xóa/thay câu trả lời lúc cuối — giữ lại bản đã viết xong trước đó");
-    ketQua(kq);
+    const tra = await ketQua(kq);
+    log(tra === false ? "⚠️ nền không nhận kết quả (việc không còn trong nền)" : `đã gửi kết quả về trang (${(kq.md || kq.chu || "").length} ký tự)`);
   } catch (e) {
     ketQua({loi: String(e && e.message || e), than_trang: docKetQua().than_trang});
   } finally {
