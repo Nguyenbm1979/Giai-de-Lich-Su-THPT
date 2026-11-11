@@ -835,13 +835,14 @@ function gwDiagText(d){
 function gwStopWatch(){ if(gwWatch){ clearTimeout(gwWatch); gwWatch=null; } }
 const toExt=o=>window.postMessage({ src:"gds-page", ...o },"*");
 let gwLast=0, gwDog=null;           // đồng hồ canh: tab Gemini (qua tiện ích) báo nhịp 5 giây/lần; im quá GW_IM_LANG_MS = coi như treo
-const GW_IM_LANG_MS=150000;
+const GW_IM_LANG_MS=240000;
 function gwStopDog(){ if(gwDog){ clearInterval(gwDog); gwDog=null; } }
 function gwStartDog(){
   gwStopDog(); gwLast=Date.now();
+  if(!(parseFloat(extVer)>=1.4)) return;                 // tiện ích cũ không gửi nhịp sống -> không canh, tránh báo treo oan
   gwDog=setInterval(()=>{
     if(!gwJob||gwJob.manual){ gwStopDog(); return; }
-    if(Date.now()-gwLast>GW_IM_LANG_MS){ const i=gwJob.idx; toExt({loai:"huy",id:gwJob.id}); gwPartBad(i,"tab Gemini im lặng hơn 150 giây (tab bị treo/đóng hoặc tiện ích mất liên lạc)"); }
+    if(Date.now()-gwLast>GW_IM_LANG_MS){ const i=gwJob.idx; toExt({loai:"huy",id:gwJob.id}); gwPartBad(i,"tab Gemini im lặng hơn 4 phút (tab bị treo/đóng hoặc tiện ích mất liên lạc)"); }
   },10000);
 }
 function gwBusy(b){ $("#gwSend").disabled=b; $("#gwCancel").hidden=!b; if(b) $("#gwRetry").hidden=true; if(!b){ gwStopWatch(); gwStopDog(); } }
@@ -888,6 +889,7 @@ function gwRebuild(){            // ghép lại toàn bộ lời giải theo đ�
 function gwSendUnit(){
   const q=gwQ, i=q.i, u=q.units[i], n=q.units.length;
   gwJob={ id:"j"+Date.now()+"_"+i, idx:i };
+  (u.jobIds=u.jobIds||[]).push(gwJob.id);
   gwBusy(true);
   setStatus('<span class="spin"></span> Đang gửi'+partTag(i,n,u.ten)+(u.tries?` (thử lại lần ${u.tries+1})`:"")+"…");
   gwWatch=setTimeout(()=>{ if(gwJob) toExt({loai:"trang-thai",tu_dong:true}); },20000);
@@ -898,6 +900,17 @@ function gwPartBad(i,reason){    // một phần Gemini không trả kết quả
   const q=gwQ, u=q.units[i]; u.tries=(u.tries||0)+1; gwBusy(false); gwJob=null;
   if(u.tries<2){ setStatus(`⏳ Phần ${i+1}/${q.units.length} chưa có kết quả (${escH(reason).slice(0,80)}). Tự thử lại…`,"err"); setTimeout(()=>{ q.i=i; gwSendUnit(); },2000); return; }
   u.status="fail"; u.reason=reason; gwAfterUnit();
+}
+function gwLateResult(du){       // Gemini trả lời sau khi trang đã bỏ phần đó: vẫn nhận nếu đúng id việc đã gửi và phần đó chưa có kết quả
+  const q=gwQ; if(!q||du.loi||du.khong_thay_ky_nang||du.khong_co_tai_khoan) return;
+  const k=q.units.findIndex(u=>(u.jobIds||[]).includes(du.id)); if(k<0||q.results[k]) return;
+  let text=(du.md&&du.md.trim())?du.md:du.chu;
+  const tot=(du.md_tot&&du.md_tot.trim())?du.md_tot:(du.chu_tot||"");
+  if(tot && tot.length>Math.max((text||"").length*1.5,(text||"").length+500)) text=tot;
+  if(isBadText(text)) return;
+  q.results[k]=text; q.units[k].status="ok"; q.units[k].reason="";
+  gwRebuild(); gwRenderFails();
+  $("#status").insertAdjacentHTML("beforeend",` <span class="hint">✔ Đã nhận bổ sung kết quả muộn của phần ${k+1}/${q.units.length}.</span>`);
 }
 function gwAfterUnit(){
   const q=gwQ; gwBusy(false); gwJob=null; gwRebuild();
@@ -960,8 +973,8 @@ window.addEventListener("message",ev=>{
   else if(d.loai==="het-han"){ extReady=false; $("#extState").textContent="⚠️ tiện ích vừa được tải lại"; if(gwJob||gwQ) { gwFail("⚠️ Tiện ích Chrome vừa được tải lại (hoặc cập nhật/tắt-bật) nên trang này mất liên lạc với tiện ích. Hãy <b>tải lại trang (Cmd+Shift+R)</b> và tải lại tab Gemini, rồi gửi lại. Các phần đã xong được lưu ở mục 4 – Lịch sử (bấm Mở)."); $("#gwRetry").hidden=true; } else setStatus("⚠️ Tiện ích vừa được tải lại. Hãy tải lại trang (Cmd+Shift+R) rồi tải lại tab Gemini.","err"); }
   else if(d.loai==="da-giao"){ if(!d.ok){ if(gwJob&&gwJob.manual){ const i=gwJob.idx; gwBusy(false); gwJob=null; failMsg(i,"❌ "+escH(d.loi||"Không giao được việc cho tiện ích")); } else gwFail("❌ "+(d.loi||"Không giao được việc cho tiện ích")); } }
   else if(d.loai==="tien-do"&&gwJob){ gwStopWatch(); const q=gwQ; const t=String(d.s||"").replace(/</g,"&lt;"); if(gwJob.manual) failMsg(gwJob.idx,'<span class="spin"></span> '+t); setStatus('<span class="spin"></span> '+(q?`<b>${(gwJob.idx!=null?gwJob.idx:q.i)+1}/${q.units.length}</b> `:"")+t); }
+  else if(d.loai==="ket-qua"&&d.du&&d.du.id&&gwQ&&(!gwJob||d.du.id!==gwJob.id)){ gwLateResult(d.du); }   // kết quả đến muộn của một phần đã bị bỏ/thử lại
   else if(d.loai==="ket-qua"&&gwJob){
-    if(d.du&&d.du.id&&d.du.id!==gwJob.id) return;      // kết quả muộn của việc đã bỏ/thử lại: không gán nhầm sang phần khác
     const du=d.du||{}, q=gwQ, i=gwJob.idx!=null?gwJob.idx:q.i;
     if(gwJob.manual){                                   // chế độ tự bấm Gửi
       const job=gwJob; gwBusy(false); gwJob=null;
