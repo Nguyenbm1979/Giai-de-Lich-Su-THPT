@@ -133,7 +133,7 @@
             <div><label>Tài khoản Google (số /u/N, bỏ trống = đang dùng)</label><input type="text" id="gwAcc" placeholder="VD: 0, 1, 2…"></div>
             <div><label>Gắn thẻ @ (Gem/kỹ năng chứa SGK, tùy chọn)</label><input type="text" id="gwTag" placeholder="tên thẻ, bỏ trống nếu không có"></div>
           </div>
-          <div class="toolbar" style="margin-top:8px"><button class="btn-primary" id="gwSend" type="button">🚀 Gửi sang Gemini Pro</button><button class="btn-sec" id="gwDiagBtn" type="button" title="Kiểm tra tiện ích có đang nói chuyện được với tab Gemini không">🩺 Kiểm tra kết nối</button><button class="btn-sec" id="gwSave" type="button" title="Ghi nhớ tên kỹ năng, model, tài khoản và tùy chọn gửi từng phần trong trình duyệt này">💾 Lưu kỹ năng</button><button class="btn-sec" id="gwRetry" type="button" hidden>↻ Thử lại</button><button class="btn-sec" id="gwCancel" type="button" hidden>⏹ Hủy</button></div>
+          <div class="toolbar" style="margin-top:8px"><button class="btn-primary" id="gwSend" type="button">🚀 Gửi sang Gemini Pro</button><button class="btn-sec" id="gwDiagBtn" type="button" title="Kiểm tra tiện ích có đang nói chuyện được với tab Gemini không">🩺 Kiểm tra kết nối</button><button class="btn-sec" id="gwSave" type="button" title="Ghi nhớ tên kỹ năng, model, tài khoản và tùy chọn gửi từng phần trong trình duyệt này">💾 Lưu kỹ năng</button><button class="btn-sec" id="gwRetry" type="button" hidden>↻ Thử lại</button><button class="btn-accent" id="gwResume" type="button" hidden title="Chỉ gửi lại các phần chưa có kết quả (kể cả khi vừa mở lại từ Lịch sử), giữ nguyên các phần đã xong">▶ Giải các phần còn thiếu</button><button class="btn-sec" id="gwCancel" type="button" hidden>⏹ Hủy</button></div>
           <div id="gwSaved" class="hint"></div>
           <div id="gwDiag" class="hint"></div>
           <label style="display:flex;gap:8px;align-items:flex-start;margin-top:6px"><input type="checkbox" id="gwSplit" checked style="width:auto;margin-top:3px"> <span>Gửi <b>từng ảnh / từng trang PDF một</b> (mỗi phần một chat mới, kết quả tự nối lại) — tránh câu trả lời quá dài bị Gemini cắt hoặc xóa</span></label>
@@ -162,6 +162,7 @@
       <button class="btn-accent" id="exportDocx" disabled>⬇ Tải Word (.docx)</button>
       <button class="btn-accent" id="exportBank" disabled title="Định dạng giống file mẫu ngân hàng đề: câu tự đánh số, đáp án đúng tô đỏ + gạch chân, không kèm lời giải">⬇ Word ngân hàng đề</button>
       <button class="btn-sec" id="copyBtn" disabled>📋 Copy</button>
+      <button class="btn-sec" id="openLast" type="button" title="Mở lại kết quả của lần giải gần nhất trong Lịch sử (mục 4)">🕘 Mở lần giải gần nhất</button>
     </div>
     <details style="margin:8px 0"><summary>⚙️ Tùy chọn file Word</summary>
       <div class="row" style="margin-top:6px">
@@ -552,7 +553,7 @@ function renderRefs(){
     if(d.busy) st=`<span class="st proc"><span class="spin"></span> đang nạp…</span>`;
     else if(refFresh(d)) st=`<span class="st ok">sẵn sàng · còn ~${Math.max(0,Math.round((d.expiry-Date.now())/3600000))}h</span>`;
     else st=`<span class="st proc">đã lưu trong máy · sẽ tự nạp lại</span>`;
-    li.innerHTML=`<span class="name">📄 ${d.name}</span>${st}<button class="x" title="Xóa khỏi máy">✕</button>`;
+    li.innerHTML=`<span class="name">📄 ${escH(d.name)}</span>${st}<button class="x" title="Xóa khỏi máy">✕</button>`;
     li.querySelector(".x").onclick=async()=>{ if(d.id) await idbDel(d.id); refDocs.splice(i,1); saveRefs(); renderRefs(); };
     ul.appendChild(li);
   });
@@ -664,7 +665,7 @@ function renderExam(){
   examParts.forEach((e,i)=>{
     const li=document.createElement("li");
     const th=(e.file&&e.mimeType.startsWith("image/"))?`<img src="${URL.createObjectURL(e.file)}" alt="" style="height:34px;width:34px;object-fit:cover;border-radius:4px;border:1px solid var(--line);vertical-align:middle;margin-right:6px">`:(e.docxImages?"📝 ":"📄 ");
-    li.innerHTML=`<span class="name">${th}${e.name}</span>
+    li.innerHTML=`<span class="name">${th}${escH(e.name)}</span>
       <span class="st ok">sẵn sàng</span><button class="x">✕</button>`;
     li.querySelector(".x").onclick=()=>{ examParts.splice(i,1); renderExam(); };
     ul.appendChild(li);
@@ -706,14 +707,14 @@ const addExamFiles = async files=>{
     if(!isImg && !isPdf && !isDocx){ setStatus("⚠️ Chỉ nhận ảnh, PDF hoặc Word (.docx).","err"); continue; }
     if(isDocx){
       const li=document.createElement("li");
-      li.innerHTML=`<span class="name">📝 ${file.name}</span><span class="st proc"><span class="spin"></span> đang đọc Word…</span>`;
+      li.innerHTML=`<span class="name">📝 ${escH(file.name)}</span><span class="st proc"><span class="spin"></span> đang đọc Word…</span>`;
       $("#examList").appendChild(li);
       try{ const d=await readDocxExam(file); examParts.push({ file, name:file.name, mimeType:"application/vnd.openxmlformats-officedocument.wordprocessingml.document", parts:d.parts, docxImages:d.docxImages }); renderExam(); }
       catch(err){ li.querySelector(".st").className="st err"; li.querySelector(".st").textContent="Không đọc được: "+err.message; }
       continue;
     }
     const li=document.createElement("li");
-    li.innerHTML=`<span class="name">${isImg?"🖼️":"📄"} ${file.name}</span><span class="st proc"><span class="spin"></span> đang xử lý…</span>`;
+    li.innerHTML=`<span class="name">${isImg?"🖼️":"📄"} ${escH(file.name)}</span><span class="st proc"><span class="spin"></span> đang xử lý…</span>`;
     $("#examList").appendChild(li);
     try{
       if(file.size <= 15*1024*1024){
@@ -764,7 +765,10 @@ async function saveHistory(){
     if(!histId) histId="h"+Date.now();
     const old=histId && await reqP((await histTx("readonly")).get(histId));
     const title=(examParts.map(e=>e.name).join(", ")||old?.title||"Đề thi").slice(0,80);
-    const rec={ id:histId, time:old?.time||Date.now(), title, markdown:fullMarkdown,
+    let gw=old?.gw||null;      // thông tin các phần Gemini Pro (để mở lại từ Lịch sử và giải tiếp phần còn thiếu)
+    if(gwQ&&gwQ.units&&(!gwQ.histId||gwQ.histId===histId)){ gwQ.histId=histId;
+      gw={ split:!!gwQ.split, names:gwQ.units.map(u=>u.ten), results:Array.from({length:gwQ.units.length},(_,k)=>gwQ.results[k]||null) }; }
+    const rec={ id:histId, time:old?.time||Date.now(), title, markdown:fullMarkdown, gw,
       exams:examParts.filter(e=>e.file).map(e=>({ name:e.name, type:e.mimeType, blob:e.file })) };
     await reqP((await histTx("readwrite")).put(rec));
     const all=await reqP((await histTx("readonly")).getAll());
@@ -786,12 +790,27 @@ async function renderHistory(){
     ul.appendChild(li);
   });
 }
+// Dựng lại hàng đợi các phần từ bản lưu: phần có kết quả = xong, phần còn lại = "chưa giải xong"
+async function gwRestore(h){
+  const g=h.gw; if(!g||!Array.isArray(g.results)||!Array.isArray(g.names)) return false;
+  const units=await gwBuildUnits(!!g.split);
+  if(gwJob||histId!==h.id) return false;          // trong lúc dựng phần, người dùng đã gửi việc khác hoặc mở lịch sử khác
+  if(units.length!==g.results.length||units.some((u,k)=>u.ten!==g.names[k])) return false;      // đề dựng ra khác lúc giải -> không ghép bừa
+  units.forEach((u,k)=>{ u.tries=0; if(g.results[k]){ u.status="ok"; u.reason=""; } else { u.status="fail"; u.reason="chưa giải xong (mở lại từ Lịch sử)"; } });
+  let s; try{ s=gwSettings(); }catch(_){ s={ tag:"", acc:null, model:"pro" }; }
+  gwQ={ units, results:g.results.map(r=>r||null), i:0, only:null, ...s, split:!!g.split, histId:h.id };
+  return true;
+}
 async function openHistory(h){
+  if(gwJob){ setStatus("⚠️ Đang gửi sang Gemini — hãy đợi xong hoặc bấm ⏹ Hủy rồi mới mở lịch sử.","err"); return; }
+  gwQ=null;
   examParts=[]; renderExam();
   try{ await addExamFiles(h.exams.map(e=>new File([e.blob],e.name,{type:e.type}))); }catch(_){}
   fullMarkdown=h.markdown; histId=h.id; renderOutput();
   $("#exportDocx").disabled=false; $("#exportBank").disabled=false; $("#copyBtn").disabled=false;
-  setStatus("🕘 Đã mở lại lần giải trước. Có thể tải Word, chỉnh khung hình hoặc bấm “Giải tiếp”.","ok");
+  let thieu=0; try{ if(await gwRestore(h)) thieu=gwQ.results.filter(r=>!r).length; }catch(_){ gwQ=null; }
+  gwRenderFails();
+  setStatus("🕘 Đã mở lại lần giải trước. Có thể tải Word, chỉnh khung hình hoặc bấm “Giải tiếp”."+(thieu?` <b style="color:#b26a00">Còn ${thieu} phần chưa giải xong — bấm “▶ Giải các phần còn thiếu” ở mục 2.</b>`:""),thieu?"err":"ok");
   try{ compareKey(); }catch(_){}
   $("#output").scrollIntoView({ behavior:"smooth" });
 }
@@ -806,8 +825,15 @@ function applyResultText(raw, append, nguon){
   let t=String(raw||"").replace(/\r/g,"").trim();
   if(!t){ setStatus("⚠️ Không có nội dung để dùng.","err"); return false; }
   t=t.replace(/^```(?:markdown|md)?\s*\n/,"").replace(/\n```\s*$/,"");             // bỏ rào code nếu có
+  if(append && gwQ && !gwJob){          // chỉ thiếu đúng 1 phần của lần giải Gemini Pro: dán vào đúng phần đó
+    const miss=gwQ.units.map((u,k)=>k).filter(k=>!gwQ.results[k]);
+    if(miss.length>1){ setStatus(`⚠️ Còn ${miss.length} phần chưa có kết quả nên trang không biết đoạn dán thuộc phần nào. Hãy dán vào ô riêng của từng phần trong khung đỏ (nút “✔ Dùng kết quả cho phần này”) hoặc bấm “▶ Giải các phần còn thiếu”.`,"err"); return false; }
+    if(miss.length===1){ const k=miss[0]; gwQ.results[k]=t; gwQ.units[k].status="ok"; gwQ.units[k].reason="";
+      gwRebuild(); gwRenderFails();
+      setStatus(`✅ Đã ghép vào phần ${k+1}/${gwQ.units.length} còn thiếu (${nCau(fullMarkdown)} câu). Có thể tải Word hoặc đối chiếu đáp án.`,"ok"); return true; }
+  }
   if(append && fullMarkdown) fullMarkdown=fullMarkdown.replace(/\s+$/,"")+"\n\n"+t;
-  else { fullMarkdown=t; histId=null; }
+  else { fullMarkdown=t; histId=null; gwQ=null; gwRenderFails(); }
   renderOutput();
   $("#exportDocx").disabled=false; $("#exportBank").disabled=false; $("#copyBtn").disabled=false;
   const n=(fullMarkdown.match(/^##\s*Câu/mg)||[]).length;
@@ -821,8 +847,8 @@ $("#useProResult").addEventListener("click",()=>{
 });
 
 // ---------- Cầu nối tiện ích Chrome → Gemini Pro ----------
-const EXT_VER_MOI="1.5";
-let extReady=false, extVer="", gwJob=null, gwWatch=null, gwQ=null;   // gwQ = {units:[{tep,them,ten,status,tries,reason}], results:[], i, tag, acc, model}
+const EXT_VER_MOI="1.6";
+let extReady=false, extVer="", gwJob=null, gwWatch=null, gwQ=null, gwRetryTimer=null;   // gwQ = {units:[{tep,them,ten,status,tries,reason}], results:[], i, tag, acc, model}
 function gwDiagText(d){
   if(d.tabs===-1) return "❌ Tiện ích không trả lời (nền bị tắt hoặc vừa tải lại). Hãy <b>tải lại trang (Cmd+Shift+R)</b> rồi thử lại.";
   const ago=d.poll_ago, j=d.job;
@@ -845,10 +871,10 @@ function gwStartDog(){
     if(!gwJob||gwJob.manual){ gwStopDog(); return; }
     if(Date.now()-gwLast>GW_IM_LANG_MS){
       if(!gwDogHoi){ gwDogHoi=true; toExt({loai:"lay-ket-qua",id:gwJob.id}); gwLast=Date.now()-GW_IM_LANG_MS+15000; return; }   // trước khi bỏ: hỏi nền xem việc đã xong mà tin báo bị rơi không
-      const i=gwJob.idx; toExt({loai:"huy",id:gwJob.id}); gwPartBad(i,"tab Gemini im lặng hơn 4 phút (tab bị treo/đóng hoặc tiện ích mất liên lạc)"); }
+      const i=gwJob.idx; toExt({loai:"huy",id:gwJob.id}); gwPartBad(i,"tab Gemini im lặng hơn 2 phút (tab bị treo/đóng hoặc tiện ích mất liên lạc)"); }
   },10000);
 }
-function gwBusy(b){ $("#gwSend").disabled=b; $("#gwCancel").hidden=!b; if(b) $("#gwRetry").hidden=true; if(!b){ gwStopWatch(); gwStopDog(); } }
+function gwBusy(b){ $("#gwSend").disabled=b; $("#gwResume").disabled=b; $("#gwCancel").hidden=!b; if(b) $("#gwRetry").hidden=true; if(!b){ gwStopWatch(); gwStopDog(); } }
 const NOTE_NOSGK="\n\nGHI CHÚ: tin nhắn này không đính kèm SGK. Hãy dựa vào kiến thức SGK Lịch sử (Kết nối tri thức) và chương trình GDPT 2018 mà bạn nắm chắc; ghi nguồn là tên bài/chủ đề tương ứng và nói rõ nếu không chắc chắn.";
 const partTag=(i,n,ten)=>n>1?` [Phần ${i+1}/${n}${ten?": "+ten:""}]`:"";
 const nCau=t=>(String(t||"").match(/^##\s*Câu/mg)||[]).length;
@@ -950,10 +976,12 @@ function gwSendUnit(){
   toExt({ loai:"giao", job:{ id:gwJob.id, model:q.model, cau_lenh:gwPromptFor(q,i), tep:gwTepFor(q,i), ky_nang:u.fixMode?"":(q.tag||""), tai_khoan:q.acc } });
 }
 function gwPartBad(i,reason){    // một phần Gemini không trả kết quả: tự thử lại 1 lần, vẫn lỗi thì đánh dấu để xử lý tay
-  const q=gwQ, u=q.units[i];
+  const q=gwQ, u=q.units[i], oldId=gwJob&&gwJob.id;
   if(u.fixMode){ u.fixMode=false; gwBusy(false); gwJob=null; gwAfterUnit(); return; }   // lượt chép lại 4 ý hỏng: giữ kết quả gốc
   u.tries=(u.tries||0)+1; gwBusy(false); gwJob=null;
-  if(u.tries<2){ setStatus(`⏳ Phần ${i+1}/${q.units.length} chưa có kết quả (${escH(reason).slice(0,80)}). Tự thử lại…`,"err"); setTimeout(()=>{ q.i=i; gwSendUnit(); },2000); return; }
+  if(u.tries<2){ setStatus(`⏳ Phần ${i+1}/${q.units.length} chưa có kết quả (${escH(reason).slice(0,80)}). Tự thử lại…`,"err");
+    if(oldId) toExt({loai:"huy",id:oldId});                       // dừng việc cũ trước khi gửi lại (tab Gemini không làm trùng)
+    gwRetryTimer=setTimeout(()=>{ gwRetryTimer=null; if(gwQ!==q||gwJob) return; q.i=i; gwSendUnit(); },2000); return; }   // bấm Hủy trong 2 giây này thì không gửi lại
   u.status="fail"; u.reason=reason; gwAfterUnit();
 }
 function gwLateResult(du){       // Gemini trả lời sau khi trang đã bỏ phần đó: vẫn nhận nếu đúng id việc đã gửi và phần đó chưa có kết quả
@@ -967,16 +995,19 @@ function gwLateResult(du){       // Gemini trả lời sau khi trang đã bỏ p
   gwRebuild(); gwRenderFails();
   $("#status").insertAdjacentHTML("beforeend",` <span class="hint">✔ Đã nhận bổ sung kết quả muộn của phần ${k+1}/${q.units.length}.</span>`);
 }
+// Hẹn gửi phần kế sau 1,5 giây; bấm Hủy trong lúc chờ thì không gửi (gwRetryTimer bị xóa)
+function gwLater(){ const q=gwQ; gwRetryTimer=setTimeout(()=>{ gwRetryTimer=null; if(gwQ===q&&!gwJob) gwSendUnit(); },1500); }
 function gwAfterUnit(){
   const q=gwQ; gwBusy(false); gwJob=null; gwRebuild();
   const cu=q.units[q.i];
   if(cu&&cu.status==="ok"&&!cu.repaired&&!cu.fixMode&&gwThieuY(q.results[q.i])){      // có câu đúng/sai chưa tách đủ 4 ý a–d -> nhờ Gemini chép lại đề đúng 1 lần
     cu.repaired=true; cu.fixMode=true; cu.tries=0;
     setStatus(`🔧 Phần ${q.i+1}/${q.units.length} có câu đúng/sai thiếu nội dung 4 ý — đang nhờ Gemini chép lại đề…`);
-    setTimeout(gwSendUnit,1500); return;
+    gwLater(); return;
   }
   if(q.only!=null){ q.only=null; gwFinish(); return; }                       // chạy lại riêng 1 phần
-  if(q.i+1<q.units.length){ q.i++; setTimeout(gwSendUnit,1500); } else gwFinish();
+  let nx=-1; for(let k=q.i+1;k<q.units.length;k++){ if(!q.results[k]){ nx=k; break; } }      // chỉ đi tới phần sau CHƯA có kết quả (khi giải tiếp từ lịch sử bỏ qua phần đã xong)
+  if(nx>=0){ q.i=nx; gwLater(); } else gwFinish();
 }
 function gwFinish(){
   const thieu=cauThieuLoiGiai(fullMarkdown);
@@ -994,6 +1025,7 @@ function gwManualSend(i){        // dán ảnh + câu lệnh vào Gemini nhưng 
 }
 function failMsg(i,html){ const el=document.querySelector(`#gwFailBox .failitem[data-i="${i}"] .fmsg`); if(el) el.innerHTML=html; }
 function gwRenderFails(){
+  gwShowResume();
   const box=$("#gwFailBox"), q=gwQ; if(!box) return;
   const bad=q?q.units.map((u,i)=>[u,i]).filter(([u])=>u.status==="fail"):[];
   if(!bad.length){ box.innerHTML=""; return; }
@@ -1116,15 +1148,38 @@ $("#gwSend").addEventListener("click",async()=>{
     const split=$("#gwSplit").checked;
     const units=await gwBuildUnits(split);
     if(!units.length) throw new Error("Không có tệp nào để gửi.");
-    const acc=$("#gwAcc").value.trim();
+    const st=gwSettings();          // báo lỗi nếu ô tài khoản không phải số
     units.forEach(u=>{ u.status="wait"; u.tries=0; u.reason=""; });
-    gwQ={ units, results:[], i:0, only:null, tag:$("#gwTag").value.trim().replace(/^@/,""), acc:acc===""?null:Number(acc), model:$("#gwModel").value };
+    if(gwRetryTimer){ clearTimeout(gwRetryTimer); gwRetryTimer=null; }
+    gwQ={ units, results:[], i:0, only:null, ...st, split, histId:null };
     fullMarkdown=""; histId=null; $("#output").innerHTML=""; $("#keyReport").innerHTML=""; gwRenderFails();
     gwSendUnit();
   }catch(err){ gwBusy(false); gwJob=null; gwQ=null; setStatus("❌ "+err.message,"err"); }
 });
+// Cài đặt gửi hiện tại trên giao diện (kiểm tra ô tài khoản chỉ nhận số)
+function gwSettings(){
+  const acc=$("#gwAcc").value.trim();
+  if(acc!==""&&!/^\d+$/.test(acc)) throw new Error("Ô “Tài khoản Google” chỉ được nhập số (0, 1, 2…) hoặc để trống.");
+  return { tag:$("#gwTag").value.trim().replace(/^@/,""), acc:acc===""?null:Number(acc), model:$("#gwModel").value };
+}
+function gwShowResume(){ const b=$("#gwResume"); if(b) b.hidden=!(gwQ&&gwQ.units&&gwQ.units.some((u,k)=>!gwQ.results[k])&&gwQ.units.some((u,k)=>gwQ.results[k]||u.status==="fail")); }
+function gwResume(){            // gửi lại CHỈ các phần chưa có kết quả, bắt đầu từ phần thiếu đầu tiên
+  const q=gwQ; if(!q||gwJob||gwRetryTimer) return;
+  const k=q.units.findIndex((u,x)=>!q.results[x]);
+  if(k<0){ setStatus("✅ Không còn phần nào thiếu.","ok"); return; }
+  try{ Object.assign(q,gwSettings()); }catch(err){ setStatus("⚠️ "+err.message,"err"); return; }
+  q.units.forEach((u,x)=>{ if(!q.results[x]){ u.status="wait"; u.tries=0; u.reason=""; u.fixMode=false; } });
+  q.only=null; q.i=k; gwRenderFails(); gwSendUnit();
+}
+$("#gwResume").addEventListener("click",gwResume);
+$("#openLast").addEventListener("click",async()=>{
+  let all=[]; try{ all=await reqP((await histTx("readonly")).getAll()); }catch(_){}
+  all.sort((a,b)=>b.time-a.time);
+  if(!all.length){ setStatus("Chưa có lần giải nào trong Lịch sử (mục 4).","err"); return; }
+  openHistory(all[0]);
+});
 $("#gwRetry").addEventListener("click",()=>{ if(gwQ) gwSendUnit(); });
-$("#gwCancel").addEventListener("click",()=>{ if(gwQ) gwQ.units.forEach(u=>{ u.fixMode=false; }); toExt({loai:"huy",id:gwJob&&gwJob.id}); gwBusy(false); gwJob=null; setStatus("⏹ Đã hủy việc gửi sang Gemini."+(gwQ&&gwQ.results.filter(Boolean).length?` ${gwQ.results.filter(Boolean).length} phần đã giải được giữ trong kết quả.`:""),""); });
+$("#gwCancel").addEventListener("click",()=>{ if(gwRetryTimer){ clearTimeout(gwRetryTimer); gwRetryTimer=null; } if(gwQ) gwQ.units.forEach(u=>{ u.fixMode=false; }); toExt({loai:"huy",id:gwJob&&gwJob.id}); gwBusy(false); gwJob=null; setStatus("⏹ Đã hủy việc gửi sang Gemini."+(gwQ&&gwQ.results.filter(Boolean).length?` ${gwQ.results.filter(Boolean).length} phần đã giải được giữ trong kết quả.`:""),""); });
 
 // ---------- Ước tính token ----------
 const fmtN=n=>Number(n).toLocaleString("vi-VN");
@@ -1211,7 +1266,7 @@ async function generate(userText, appendMode){
 
   $("#run").disabled=true; $("#continue").disabled=true;
   setStatus('<span class="spin"></span> AI đang đọc đề và đối chiếu SGK… (đề dài có thể mất 1–3 phút)');
-  if(!appendMode){ fullMarkdown=""; histId=null; $("#output").innerHTML=""; }
+  if(!appendMode){ fullMarkdown=""; histId=null; gwQ=null; gwRenderFails(); $("#output").innerHTML=""; }
 
   let fbNote="";
   try{

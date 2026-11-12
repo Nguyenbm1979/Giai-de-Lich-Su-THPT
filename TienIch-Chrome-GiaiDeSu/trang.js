@@ -132,7 +132,7 @@ async function ganKyNang(ten) {
   return theOCuoi(ten);
 }
 
-const IM_LANG_TOI_DA = 60000;
+const IM_LANG_TOI_DA = 180000;   // Gemini Pro "suy nghĩ" có thể im lặng hơn 1 phút trước khi viết
 // Gemini đôi khi VIẾT XONG rồi bộ lọc phía máy chủ XÓA câu trả lời, thay bằng lời từ chối/báo lỗi.
 // Giữ lại bản dài nhất đã hiện trên màn hình trong lúc Gemini viết để không mất công.
 let tot = {md: "", chu: ""}, demTot = 0;

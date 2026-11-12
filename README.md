@@ -10,6 +10,7 @@ dùng Google Gemini (AI Studio). Bám sát SGK Kết nối tri thức & Chương
 - Xuất Word có **bảng** (Markdown → bảng Word), **bảng đáp án tóm tắt**, tùy chọn tên trường/đề/năm học, cỡ chữ, ẩn dòng nguồn.
 - **Đối chiếu đáp án chuẩn** (dán “1A 2B … 21 ĐSĐS”) để thấy câu AI giải lệch; **giải theo nhóm câu** (VD 1-20, 25).
 - **Lịch sử 20 lần giải gần nhất** lưu trong trình duyệt (kèm ảnh/PDF đề), mở lại để tải Word hoặc chỉnh hình.
+- **Giải tiếp phần còn thiếu (tiện ích v1.6):** nếu một ảnh/trang không giải được (hoặc lỡ tải lại trang), mở lại lần giải trong **Lịch sử** (hoặc nút **🕘 Mở lần giải gần nhất**) rồi bấm **▶ Giải các phần còn thiếu** — chỉ gửi lại phần chưa có kết quả, giữ nguyên các phần đã xong. Tiện ích v1.6 lưu việc đang làm vào `chrome.storage.session` nên không còn mất việc khi Chrome tắt tiến trình nền.
 - Chỉnh khung hình: kéo để di chuyển, kéo cạnh/góc để đổi cỡ, kéo ngoài khung để vẽ mới.
 - Nhận đề dạng **ảnh, PDF hoặc Word (.docx)** (hình trong file Word được chèn lại nguyên vẹn).
 - **📊 Ước tính token** trước khi giải, hiện tiến độ số câu khi AI đang viết và số token đã dùng khi xong.

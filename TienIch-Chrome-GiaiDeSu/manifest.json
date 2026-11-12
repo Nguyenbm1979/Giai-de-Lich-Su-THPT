@@ -1,9 +1,9 @@
 {
   "manifest_version": 3,
   "name": "Giải đề Sử – cầu nối Gemini",
-  "version": "1.5",
+  "version": "1.6",
   "description": "Nhận đề + câu lệnh từ trang Giải đề Lịch sử THPT, gửi vào tab Gemini (gói Pro của bạn) và trả lời giải về trang. Chỉ hoạt động trên gemini.google.com và trang Giải đề.",
-  "permissions": [],
+  "permissions": ["storage"],
   "host_permissions": ["https://gemini.google.com/*"],
   "background": {"service_worker": "nen.js"},
   "content_scripts": [
