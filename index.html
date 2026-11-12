@@ -1183,7 +1183,9 @@ async function gwResume(){      // gửi lại CHỈ các phần chưa có kết
     const kx=parseInt(ans,10); if(!(kx>=1&&kx<=n-1)){ setStatus(`⚠️ Số phần không hợp lệ (phải từ 1 đến ${n-1}).`,"err"); return; }
     let st; try{ st=gwSettings(); }catch(err){ setStatus("⚠️ "+err.message,"err"); return; }
     units.forEach((u,x)=>{ u.tries=0; u.reason=""; u.status=x<kx?"ok":"wait"; });
-    gwQ={ units, results:units.map((u,x)=>x===0?fullMarkdown:(x<kx?" ":null)), i:0, only:null, ...st, split:true, histId:histId };
+    // bỏ dòng đánh dấu "Phần chưa có kết quả" của phần kế tiếp và mọi thứ sau nó (kể cả đoạn đã dán nhầm trước đó)
+    const cut=fullMarkdown.indexOf(`[[PHAN_TRONG ${kx+1}/${n}:`), base=(cut>=0?fullMarkdown.slice(0,cut):fullMarkdown).replace(/(\s*---\s*)+$/,"").trim();
+    gwQ={ units, results:units.map((u,x)=>x===0?base:(x<kx?" ":null)), i:0, only:null, ...st, split:true, histId:histId };
   }
   const q=gwQ;
   const k=q.units.findIndex((u,x)=>!q.results[x]);
