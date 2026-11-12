@@ -133,7 +133,7 @@
             <div><label>Tài khoản Google (số /u/N, bỏ trống = đang dùng)</label><input type="text" id="gwAcc" placeholder="VD: 0, 1, 2…"></div>
             <div><label>Gắn thẻ @ (Gem/kỹ năng chứa SGK, tùy chọn)</label><input type="text" id="gwTag" placeholder="tên thẻ, bỏ trống nếu không có"></div>
           </div>
-          <div class="toolbar" style="margin-top:8px"><button class="btn-primary" id="gwSend" type="button">🚀 Gửi sang Gemini Pro</button><button class="btn-sec" id="gwDiagBtn" type="button" title="Kiểm tra tiện ích có đang nói chuyện được với tab Gemini không">🩺 Kiểm tra kết nối</button><button class="btn-sec" id="gwSave" type="button" title="Ghi nhớ tên kỹ năng, model, tài khoản và tùy chọn gửi từng phần trong trình duyệt này">💾 Lưu kỹ năng</button><button class="btn-sec" id="gwRetry" type="button" hidden>↻ Thử lại</button><button class="btn-accent" id="gwResume" type="button" hidden title="Chỉ gửi lại các phần chưa có kết quả (kể cả khi vừa mở lại từ Lịch sử), giữ nguyên các phần đã xong">▶ Giải các phần còn thiếu</button><button class="btn-sec" id="gwCancel" type="button" hidden>⏹ Hủy</button></div>
+          <div class="toolbar" style="margin-top:8px"><button class="btn-primary" id="gwSend" type="button">🚀 Gửi sang Gemini Pro</button><button class="btn-sec" id="gwDiagBtn" type="button" title="Kiểm tra tiện ích có đang nói chuyện được với tab Gemini không">🩺 Kiểm tra kết nối</button><button class="btn-sec" id="gwSave" type="button" title="Ghi nhớ tên kỹ năng, model, tài khoản và tùy chọn gửi từng phần trong trình duyệt này">💾 Lưu kỹ năng</button><button class="btn-sec" id="gwRetry" type="button" hidden>↻ Thử lại</button><button class="btn-sec" id="gwCancel" type="button" hidden>⏹ Hủy</button></div>
           <div id="gwSaved" class="hint"></div>
           <div id="gwDiag" class="hint"></div>
           <label style="display:flex;gap:8px;align-items:flex-start;margin-top:6px"><input type="checkbox" id="gwSplit" checked style="width:auto;margin-top:3px"> <span>Gửi <b>từng ảnh / từng trang PDF một</b> (mỗi phần một chat mới, kết quả tự nối lại) — tránh câu trả lời quá dài bị Gemini cắt hoặc xóa</span></label>
@@ -163,6 +163,7 @@
       <button class="btn-accent" id="exportBank" disabled title="Định dạng giống file mẫu ngân hàng đề: câu tự đánh số, đáp án đúng tô đỏ + gạch chân, không kèm lời giải">⬇ Word ngân hàng đề</button>
       <button class="btn-sec" id="copyBtn" disabled>📋 Copy</button>
       <button class="btn-sec" id="openLast" type="button" title="Mở lại kết quả của lần giải gần nhất trong Lịch sử (mục 4)">🕘 Mở lần giải gần nhất</button>
+      <button class="btn-accent" id="gwResume" type="button" hidden title="Chỉ gửi sang Gemini các ảnh/trang chưa có lời giải, giữ nguyên các phần đã xong">▶ Giải tiếp phần còn thiếu</button>
     </div>
     <details style="margin:8px 0"><summary>⚙️ Tùy chọn file Word</summary>
       <div class="row" style="margin-top:6px">
@@ -661,6 +662,7 @@ $("#driveBtn").addEventListener("click", async()=>{
 
 // ---------- Đề thi ----------
 function renderExam(){
+  try{ gwShowResume(); }catch(_){}
   const ul=$("#examList"); ul.innerHTML="";
   examParts.forEach((e,i)=>{
     const li=document.createElement("li");
@@ -810,7 +812,7 @@ async function openHistory(h){
   $("#exportDocx").disabled=false; $("#exportBank").disabled=false; $("#copyBtn").disabled=false;
   let thieu=0; try{ if(await gwRestore(h)) thieu=gwQ.results.filter(r=>!r).length; }catch(_){ gwQ=null; }
   gwRenderFails();
-  setStatus("🕘 Đã mở lại lần giải trước. Có thể tải Word, chỉnh khung hình hoặc bấm “Giải tiếp”."+(thieu?` <b style="color:#b26a00">Còn ${thieu} phần chưa giải xong — bấm “▶ Giải các phần còn thiếu” ở mục 2.</b>`:""),thieu?"err":"ok");
+  setStatus("🕘 Đã mở lại lần giải trước. Có thể tải Word, chỉnh khung hình hoặc bấm “Giải tiếp”."+(thieu?` <b style="color:#b26a00">Còn ${thieu} phần chưa giải xong — bấm “▶ Giải tiếp phần còn thiếu” ở mục 3.</b>`:(!gwQ&&examParts.length>1?` <b style="color:#b26a00">Nếu còn ảnh/trang chưa giải, bấm “▶ Giải tiếp phần còn thiếu”.</b>`:"")),(thieu||(!gwQ&&examParts.length>1))?"err":"ok");
   try{ compareKey(); }catch(_){}
   $("#output").scrollIntoView({ behavior:"smooth" });
 }
@@ -874,7 +876,7 @@ function gwStartDog(){
       const i=gwJob.idx; toExt({loai:"huy",id:gwJob.id}); gwPartBad(i,"tab Gemini im lặng hơn 2 phút (tab bị treo/đóng hoặc tiện ích mất liên lạc)"); }
   },10000);
 }
-function gwBusy(b){ $("#gwSend").disabled=b; $("#gwResume").disabled=b; $("#gwCancel").hidden=!b; if(b) $("#gwRetry").hidden=true; if(!b){ gwStopWatch(); gwStopDog(); } }
+function gwBusy(b){ $("#gwSend").disabled=b; $("#gwResume").disabled=b; gwShowResume(); $("#gwCancel").hidden=!b; if(b) $("#gwRetry").hidden=true; if(!b){ gwStopWatch(); gwStopDog(); } }
 const NOTE_NOSGK="\n\nGHI CHÚ: tin nhắn này không đính kèm SGK. Hãy dựa vào kiến thức SGK Lịch sử (Kết nối tri thức) và chương trình GDPT 2018 mà bạn nắm chắc; ghi nguồn là tên bài/chủ đề tương ứng và nói rõ nếu không chắc chắn.";
 const partTag=(i,n,ten)=>n>1?` [Phần ${i+1}/${n}${ten?": "+ten:""}]`:"";
 const nCau=t=>(String(t||"").match(/^##\s*Câu/mg)||[]).length;
@@ -910,7 +912,7 @@ const RULE_CUT=`\n\nNếu câu CUỐI của ảnh cần giải bị cắt dở (
 const RULE_FIX=`CHỈ CHÉP LẠI ĐỀ, KHÔNG GIẢI (bỏ qua mọi định dạng đầu ra đã thiết lập trước đó). Với MỖI câu trắc nghiệm ĐÚNG/SAI (có đoạn tư liệu hoặc thông tin kèm 4 ý a, b, c, d) trong ảnh, chép theo đúng mẫu:\n## Câu [số in trong đề]\na) [nguyên văn ý a]\nb) [nguyên văn ý b]\nc) [nguyên văn ý c]\nd) [nguyên văn ý d]\nChép theo thứ tự xuất hiện; không viết đáp án, lời giải hay nhận xét; bỏ qua câu nhiều lựa chọn và tự luận. Nếu 4 ý a-d ở đầu ảnh thuộc câu bị cắt từ trang trước thì vẫn chép 4 ý đó.\nĐề thi là các tệp/ảnh đính kèm trong tin nhắn này.`;
 // Trang trước làm ảnh tham khảo để ghép câu bị cắt ngang giữa hai trang (chỉ khi cả hai phần đều là ảnh thường)
 function gwHasRef(q,i){
-  if(i<=0||q.units.length<2) return false;
+  if(i<=0||i>=q.units.length||q.units.length<2) return false;      // i = số phần: không có phần kế tiếp (phần cuối) thì không có ảnh tham khảo
   const u=q.units[i], p=q.units[i-1];
   return !u.them&&!p.them&&p.tep.length&&u.tep.length&&[...p.tep,...u.tep].every(t=>/^image\//.test(t.type||""));
 }
@@ -960,7 +962,7 @@ function gwPromptFor(q,i,khongThamKhao){
 }
 function gwRebuild(){            // ghép lại toàn bộ lời giải theo đúng thứ tự phần; phần chưa có kết quả = dòng đánh dấu
   const q=gwQ; if(!q) return;
-  fullMarkdown=q.units.map((u,k)=>dropCutStubs(stripPreamble(q.results[k]))||PH(k,q.units.length,u.ten)).join("\n\n---\n\n");
+  fullMarkdown=q.units.map((u,k)=>dropCutStubs(stripPreamble(q.results[k]))||PH(k,q.units.length,u.ten)).filter(t=>t.trim()).join("\n\n---\n\n");
   renderOutput(); $("#exportDocx").disabled=false; $("#exportBank").disabled=false; $("#copyBtn").disabled=false;
   try{ compareKey(); }catch(_){}
   saveHistory();
@@ -973,7 +975,9 @@ function gwSendUnit(){
   setStatus('<span class="spin"></span> Đang gửi'+partTag(i,n,u.ten)+(u.tries?` (thử lại lần ${u.tries+1})`:"")+"…");
   gwWatch=setTimeout(()=>{ if(gwJob) toExt({loai:"trang-thai",tu_dong:true}); },20000);
   gwStartDog();
-  toExt({ loai:"giao", job:{ id:gwJob.id, model:q.model, cau_lenh:gwPromptFor(q,i), tep:gwTepFor(q,i), ky_nang:u.fixMode?"":(q.tag||""), tai_khoan:q.acc } });
+  let job; try{ job={ id:gwJob.id, model:q.model, cau_lenh:gwPromptFor(q,i), tep:gwTepFor(q,i), ky_nang:u.fixMode?"":(q.tag||""), tai_khoan:q.acc }; }
+  catch(err){ gwPartBad(i,"Lỗi dựng câu lệnh gửi: "+err.message); return; }     // không để lỗi chương trình làm treo hàng đợi một cách im lặng
+  toExt({ loai:"giao", job });
 }
 function gwPartBad(i,reason){    // một phần Gemini không trả kết quả: tự thử lại 1 lần, vẫn lỗi thì đánh dấu để xử lý tay
   const q=gwQ, u=q.units[i], oldId=gwJob&&gwJob.id;
@@ -1162,9 +1166,26 @@ function gwSettings(){
   if(acc!==""&&!/^\d+$/.test(acc)) throw new Error("Ô “Tài khoản Google” chỉ được nhập số (0, 1, 2…) hoặc để trống.");
   return { tag:$("#gwTag").value.trim().replace(/^@/,""), acc:acc===""?null:Number(acc), model:$("#gwModel").value };
 }
-function gwShowResume(){ const b=$("#gwResume"); if(b) b.hidden=!(gwQ&&gwQ.units&&gwQ.units.some((u,k)=>!gwQ.results[k])&&gwQ.units.some((u,k)=>gwQ.results[k]||u.status==="fail")); }
-function gwResume(){            // gửi lại CHỈ các phần chưa có kết quả, bắt đầu từ phần thiếu đầu tiên
-  const q=gwQ; if(!q||gwJob||gwRetryTimer) return;
+function gwShowResume(){
+  const b=$("#gwResume"); if(!b) return;
+  const thieu=!!(gwQ&&gwQ.units&&gwQ.units.some((u,k)=>!gwQ.results[k]));
+  const cu=!gwQ&&!!fullMarkdown&&examParts.length>1;        // lần giải cũ (chưa lưu thông tin từng phần) nhưng đề có nhiều ảnh/trang
+  b.hidden=!(thieu||cu)||!!gwJob||!!gwRetryTimer;
+}
+async function gwResume(){      // gửi lại CHỈ các phần chưa có kết quả, bắt đầu từ phần thiếu đầu tiên
+  if(gwJob||gwRetryTimer) return;
+  if(!gwQ){                      // lần giải cũ: hỏi người dùng đã xong đến phần mấy rồi dựng hàng đợi
+    if(!extReady){ setStatus("⚠️ Chưa thấy tiện ích Chrome — cần tiện ích (mục 2) để gửi sang Gemini Pro.","err"); return; }
+    let units; try{ units=await gwBuildUnits(true); }catch(err){ setStatus("❌ "+err.message,"err"); return; }
+    const n=units.length; if(n<2){ setStatus("⚠️ Đề chỉ có 1 phần, hãy bấm 🚀 Gửi sang Gemini Pro.","err"); return; }
+    const ans=prompt(`Đề này có ${n} phần (ảnh/trang). Lời giải hiện có ứng với các phần đầu đến phần số mấy?\n(Nhập từ 1 đến ${n-1}. Ví dụ nhập ${n-1} = phần 1–${n-1} đã xong, sẽ giải tiếp từ phần ${n}.)`,String(n-1));
+    if(ans===null) return;
+    const kx=parseInt(ans,10); if(!(kx>=1&&kx<=n-1)){ setStatus(`⚠️ Số phần không hợp lệ (phải từ 1 đến ${n-1}).`,"err"); return; }
+    let st; try{ st=gwSettings(); }catch(err){ setStatus("⚠️ "+err.message,"err"); return; }
+    units.forEach((u,x)=>{ u.tries=0; u.reason=""; u.status=x<kx?"ok":"wait"; });
+    gwQ={ units, results:units.map((u,x)=>x===0?fullMarkdown:(x<kx?" ":null)), i:0, only:null, ...st, split:true, histId:histId };
+  }
+  const q=gwQ;
   const k=q.units.findIndex((u,x)=>!q.results[x]);
   if(k<0){ setStatus("✅ Không còn phần nào thiếu.","ok"); return; }
   try{ Object.assign(q,gwSettings()); }catch(err){ setStatus("⚠️ "+err.message,"err"); return; }
@@ -1649,6 +1670,7 @@ function getCrop(n,p,box){
   return cropCache[key];
 }
 function renderOutput(){
+  try{ gwShowResume(); }catch(_){}
   let md=fullMarkdown.replace(/\[\[HINH[^\]]*$/,"").replace(/\[\[PHAN_TRONG ([^\]]*)\]\]/g,(m,t)=>`\n\n<div class="phan-trong">⚠️ Phần chưa có kết quả: ${escH(t)}</div>\n\n`);   // ẩn marker đang gõ dở
   const figs=[];
   md=md.replace(FIG_RE,(m,n,p,box)=>{ figs.push([n,p,box.replace(/\s+/g,"")]); return `\n\n<div class="figwait" data-f="${figs.length-1}">⏳ đang cắt hình…</div>\n\n`; });
